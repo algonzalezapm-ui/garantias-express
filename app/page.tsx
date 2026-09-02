@@ -587,6 +587,8 @@ type Caso = {
   origenBot?: boolean;
   custodia?: string;
   caja?: string;
+  origenMostrador?: boolean;
+  entregadoAlmacen?: boolean;
 };
 const data: Caso[] = [
   {
@@ -3515,7 +3517,9 @@ function WarehouseHub({
   );
 }
 export default function Home() {
-  const [portal, setPortal] = useState<"central" | "sucursal" | null>(null),
+  const [portal, setPortal] = useState<
+      "central" | "sucursal" | "mostrador" | null
+    >(null),
     [vista, setVista] = useState("Solicitudes"),
     [casos, setCasos] = useState(data),
     [sel, setSel] = useState<Caso | null>(data[0]),
@@ -3583,7 +3587,8 @@ export default function Home() {
     [aprobado, setAprobado] = useState(false),
     [invoiceStock, setInvoiceStock] = useState<Record<string, number>>(() =>
       Object.fromEntries(facturas.map((f) => [f.folio, f.cantidad])),
-    );
+    ),
+    [devoluciones, setDevoluciones] = useState<Devolucion[]>([]);
   const [repairTransfers, setRepairTransfers] = useState<DispositionItem[]>([]),
     [dateFrom, setDateFrom] = useState(""),
     [dateTo, setDateTo] = useState("");
@@ -4138,6 +4143,115 @@ export default function Home() {
         : "Solicitud rechazada y dictamen generado",
     );
   }
+  function crearDesdeMostrador(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    const f = new FormData(e.currentTarget),
+      folio = String(f.get("factura")),
+      resultado = String(f.get("resultado")) as Caso["resultado"],
+      tipo = ((
+        e.currentTarget.querySelector(
+          ".application-row select",
+        ) as HTMLSelectElement | null
+      )?.value || "Aplicado a factura") as Aplicacion,
+      importe =
+        f.get("bateria") === "on"
+          ? Number(f.get("batteryCredit") || 0).toLocaleString("es-MX", {
+              style: "currency",
+              currency: "MXN",
+            })
+          : facturas.find((x) => x.folio === folio)?.precio || "$0.00";
+    const c: Caso = {
+      id: `GE-260901-${5100 + casos.length}`,
+      sucursal: String(f.get("sucursal")),
+      cliente: String(f.get("cliente")),
+      producto: String(f.get("producto")),
+      sku: String(f.get("sku")),
+      canal: String(f.get("canal")) as Caso["canal"],
+      estado: "Diagnóstico completado",
+      tiempo: "Ahora",
+      recibido: false,
+      bateria: f.get("bateria") === "on",
+      resultado,
+      observacion: String(f.get("observacion")),
+      notaCredito:
+        resultado === "Procede"
+          ? `NC-${String(5100 + casos.length).padStart(4, "0")}`
+          : undefined,
+      tipoAplicacion: resultado === "Procede" ? tipo : undefined,
+      importeBonificacion: resultado === "Procede" ? importe : undefined,
+      factura: folio,
+      fechaSolicitud: "1 sep 2026 · Ahora",
+      origenMostrador: true,
+      custodia: "Con el cliente",
+    };
+    setInvoiceStock((s) => ({
+      ...s,
+      [folio]: Math.max(0, (s[folio] || 0) - 1),
+    }));
+    setCasos((x) => [c, ...x]);
+    imprimirDictamen(c);
+    avisar(
+      c.resultado === "Procede"
+        ? `Solicitud aplicada correctamente, folio de la nota de crédito ${c.notaCredito}`
+        : "Solicitud rechazada y dictamen generado",
+    );
+  }
+  function crearDevolucion(
+    input: Omit<
+      Devolucion,
+      "folio" | "notaCredito" | "estado" | "custodia" | "creadaEn"
+    >,
+  ) {
+    const n = devoluciones.length,
+      d: Devolucion = {
+        ...input,
+        folio: `DEV-260901-${String(1001 + n).padStart(4, "0")}`,
+        notaCredito: `NC-${String(6001 + n).padStart(4, "0")}`,
+        estado: "Capturada",
+        custodia: "En mostrador",
+        creadaEn: "1 sep 2026 · Ahora",
+      };
+    setDevoluciones((x) => [d, ...x]);
+    imprimirNotaCreditoDevolucion(d);
+    avisar(`Devolución ${d.folio} capturada, nota de crédito ${d.notaCredito}`);
+  }
+  async function entregarGarantiaAAlmacen(id: string) {
+    if (!(await askQuestion(`¿Confirmas entregar ${id} a Garantías Sucursal?`)))
+      return;
+    setCasos((x) =>
+      x.map((c) =>
+        c.id === id
+          ? { ...c, entregadoAlmacen: true, custodia: "En sucursal" }
+          : c,
+      ),
+    );
+    avisar(`${id} entregado a Garantías Sucursal`);
+  }
+  async function entregarDevolucionAAlmacen(folio: string) {
+    if (
+      !(await askQuestion(`¿Confirmas entregar la devolución ${folio} a Garantías Sucursal?`))
+    )
+      return;
+    setDevoluciones((x) =>
+      x.map((d) =>
+        d.folio === folio ? { ...d, estado: "Entregada a almacén" } : d,
+      ),
+    );
+    avisar(`Devolución ${folio} entregada a Garantías Sucursal`);
+  }
+  async function recibirDevolucionEnAlmacen(folio: string) {
+    if (
+      !(await askQuestion(`¿Confirmas la recepción de la devolución ${folio} en el almacén de la sucursal?`))
+    )
+      return;
+    setDevoluciones((x) =>
+      x.map((d) =>
+        d.folio === folio
+          ? { ...d, estado: "Recibida en almacén", custodia: "En almacén" }
+          : d,
+      ),
+    );
+  }
   const titulos: Record<string, [string, string]> = {
     Inicio: [
       "Indicadores",
@@ -4190,9 +4304,28 @@ export default function Home() {
         <SucursalPortal
           casos={casos}
           qualityIncidents={qualityIncidents}
+          devoluciones={devoluciones}
+          onRecibirDevolucion={recibirDevolucionEnAlmacen}
           onBack={() => setPortal(null)}
         />
         <QuestionModalHost />
+      </>
+    );
+  if (portal === "mostrador")
+    return (
+      <>
+        <MostradorPortal
+          casos={casos}
+          devoluciones={devoluciones}
+          stock={invoiceStock}
+          onCrearGarantia={crearDesdeMostrador}
+          onCrearDevolucion={crearDevolucion}
+          onEntregarGarantia={entregarGarantiaAAlmacen}
+          onEntregarDevolucion={entregarDevolucionAAlmacen}
+          onBack={() => setPortal(null)}
+        />
+        <QuestionModalHost />
+        <InfoModalHost />
       </>
     );
   return (
@@ -5907,6 +6040,33 @@ function imprimirDictamen(c: Caso) {
   w.focus();
   setTimeout(() => w.print(), 250);
 }
+function imprimirNotaCreditoDevolucion(d: Devolucion) {
+  const w = window.open("", "_blank", "width=850,height=900");
+  if (!w) return;
+  const leyenda =
+    d.tipoAplicacion === "Anticipo"
+      ? "La bonificación fue aplicada como anticipo en su cuenta."
+      : d.tipoAplicacion === "Aplicado a factura"
+        ? `La bonificación fue aplicada a la Factura ${d.documento}.`
+        : "La bonificación será entregada mediante un código QR de un solo uso.";
+  const qr =
+    d.tipoAplicacion === "Devolución de efectivo"
+      ? `<aside class="qr"><div class="qrbox"></div><p><b>QR-${d.notaCredito}-U1</b><small>Código de un solo uso para devolución de efectivo. Validar identidad del beneficiario antes de aplicarlo.</small></p></aside>`
+      : "";
+  const filas = d.items
+    .filter((i) => i.cantidad > 0)
+    .map(
+      (i) =>
+        `<tr><td>${i.sku}</td><td>${i.descripcion}</td><td>${i.motivo}</td><td>${i.cantidad}</td><td>${formatMoney(i.precio)}</td><td>${formatMoney(i.descuento)}</td><td>${formatMoney(i.cantidad * i.precio - i.descuento)}</td></tr>`,
+    )
+    .join("");
+  w.document.write(
+    `<html><head><title>Nota de crédito ${d.notaCredito}</title><style>@page{size:letter;margin:0}*{box-sizing:border-box}body{font-family:Arial;color:#172338;margin:0}.doc{width:7.2in;min-height:9.7in;padding:.55in .65in}.head{border-bottom:4px solid #173d79;padding-bottom:20px;display:flex;justify-content:space-between;gap:24px}.brand{background:#173d79;color:white;padding:18px 28px;font-size:24px;font-weight:bold}.head small{color:#3268ab;font-weight:bold}.head h1{margin:6px 0;font-size:22px}.meta,.data{display:grid;grid-template-columns:repeat(3,1fr);gap:1px;background:#dfe6ee;margin-top:20px}.meta div,.data div{background:#f7f9fc;padding:13px}.data{grid-template-columns:1fr 2fr}.label{font-size:8px;color:#718096;display:block}.value{font-size:12px;font-weight:bold;display:block;margin-top:5px}table{width:100%;border-collapse:collapse;margin-top:18px;font-size:10px}th,td{border:1px solid #dfe6ee;padding:8px;text-align:left}th{background:#edf4fc;color:#173d79}.totales{margin-top:14px;margin-left:auto;width:260px}.totales div{display:flex;justify-content:space-between;padding:6px 0;font-size:11px}.totales .total{font-weight:bold;border-top:2px solid #173d79;margin-top:4px}.application{margin-top:20px;border:1px solid #dfe6ee;border-radius:9px;overflow:hidden}.application h2{font-size:13px;background:#edf4fc;color:#173d79;margin:0;padding:11px 15px}.application>div{display:flex;justify-content:space-between;align-items:center;padding:15px}.application span{display:flex;flex-direction:column;gap:5px}.legend{margin:0 15px 15px;border-left:4px solid #168565;background:#eef8f4;padding:11px;font-size:11px;font-weight:bold}.qr{display:flex;align-items:center;gap:12px}.qrbox{width:84px;height:84px;border:6px solid white;outline:1px solid #172c47;background:repeating-conic-gradient(#172c47 0 25%,#fff 0 50%) 0/12px 12px}.qr p{display:flex;flex-direction:column;max-width:185px;margin:0}.qr small{font-size:8px;line-height:1.4;margin-top:5px}.foot{margin-top:38px;border-top:1px solid #dce3eb;padding-top:15px;color:#718096;font-size:9px}.actions{text-align:center;margin:20px}.actions button{background:#173d79;color:white;border:0;border-radius:7px;padding:10px 18px;font-weight:bold}@media print{.actions{display:none}}</style></head><body><div class="doc"><div class="head"><div class="brand">APYMSA</div><div><small>NOTA DE CRÉDITO</small><h1>Registro de devoluciones y garantías</h1><p>Documento de devolución, bonificación y trazabilidad</p></div></div><div class="meta"><div><span class="label">NOTA DE CRÉDITO</span><span class="value">${d.notaCredito}</span></div><div><span class="label">DOCUMENTO / SERIE</span><span class="value">${d.documento} · ${d.serie}</span></div><div><span class="label">FECHA</span><span class="value">${d.creadaEn}</span></div></div><div class="data"><div><span class="label">CLIENTE</span><span class="value">${d.clienteNombre} (${d.clienteId})</span></div><div><span class="label">SUCURSAL / VENDEDOR</span><span class="value">${d.sucursal} · ${d.vendedorId}</span></div></div><table><thead><tr><th>Código</th><th>Descripción</th><th>Motivo</th><th>Cant.</th><th>Precio</th><th>Descuento</th><th>Importe</th></tr></thead><tbody>${filas}</tbody></table><div class="totales"><div><span>Subtotal</span><span>${formatMoney(d.subtotal)}</span></div><div><span>IVA</span><span>${formatMoney(d.iva)}</span></div><div class="total"><span>Total</span><span>${formatMoney(d.total)}</span></div></div><section class="application"><h2>Aplicación de la nota de crédito</h2><div><span><small class="label">TIPO DE MOVIMIENTO</small><strong>${d.tipoAplicacion}</strong><small>Folio ${d.notaCredito} · Importe ${formatMoney(d.total)}</small></span>${qr}</div><p class="legend">${leyenda}</p></section><div class="foot"><b>Departamento de Garantías · Grupo APYMSA</b><p>Documento generado electrónicamente por Garantías Express.</p></div></div><div class="actions"><button onclick="window.print()">Descargar / imprimir PDF</button></div></body></html>`,
+  );
+  w.document.close();
+  w.focus();
+  setTimeout(() => w.print(), 250);
+}
 function custodyOperation(c: Caso, receivedBoxes: string[]) {
   const central = Boolean(c.caja && receivedBoxes.includes(c.caja)),
     holder =
@@ -5954,6 +6114,20 @@ function custodyOperation(c: Caso, receivedBoxes: string[]) {
     return {
       holder,
       next: "Documentar envío logístico",
+      sla: "En tiempo",
+      tone: "ok",
+    };
+  if (holder === "En mostrador")
+    return {
+      holder,
+      next: "Entregar a almacén de la sucursal",
+      sla: "En tiempo",
+      tone: "warning",
+    };
+  if (holder === "En almacén")
+    return {
+      holder,
+      next: "Proceso finalizado",
       sla: "En tiempo",
       tone: "ok",
     };
@@ -13282,7 +13456,7 @@ function CustodyMonitor() {
 function PortalSelector({
   onSelect,
 }: {
-  onSelect: (p: "central" | "sucursal") => void;
+  onSelect: (p: "central" | "sucursal" | "mostrador") => void;
 }) {
   const modules = [
     {
@@ -13298,6 +13472,13 @@ function PortalSelector({
       tag: "TRAZABILIDAD FÍSICA",
       d: "Recepción, inventario y cajas para envío.",
       action: "sucursal" as const,
+    },
+    {
+      i: "⎘",
+      n: "Registro de devoluciones y garantías",
+      tag: "MOSTRADOR",
+      d: "Captura devoluciones y garantías directamente en mostrador.",
+      action: "mostrador" as const,
     },
     {
       i: "↗",
@@ -13373,7 +13554,9 @@ function PortalSelector({
                     ? "central-icon"
                     : m.action === "sucursal"
                       ? "branch-icon"
-                      : ""
+                      : m.action === "mostrador"
+                        ? "mostrador-icon"
+                        : ""
                 }
               >
                 {m.i}
@@ -13400,14 +13583,23 @@ function SucursalPortal({
   casos,
   onBack,
   qualityIncidents,
+  devoluciones,
+  onRecibirDevolucion,
 }: {
   casos: Caso[];
   onBack: () => void;
   qualityIncidents: QualityGeneratedIncident[];
+  devoluciones: Devolucion[];
+  onRecibirDevolucion: (folio: string) => void;
 }) {
-  const [incidents, setIncidents] = useState(false),
+  const [tab, setTab] = useState<"garantias" | "incidencias" | "devoluciones">(
+      "garantias",
+    ),
     [collapsed, setCollapsed] = useState(false),
     [mensaje, setMensaje] = useState("");
+  const devolucionesArribo = devoluciones.filter(
+    (d) => d.estado !== "Capturada",
+  );
   const avisar = (m: string) => {
     setMensaje(m);
     setTimeout(() => setMensaje(""), 2500);
@@ -13432,15 +13624,25 @@ function SucursalPortal({
         <nav>
           <small>GARANTÍAS SUCURSAL</small>
           <button
-            className={!incidents ? "active" : ""}
-            onClick={() => setIncidents(false)}
+            className={tab === "garantias" ? "active" : ""}
+            onClick={() => setTab("garantias")}
           >
             <i>↓</i>
             <span>Arribo de garantías</span>
           </button>
           <button
-            className={incidents ? "active" : ""}
-            onClick={() => setIncidents(true)}
+            className={tab === "devoluciones" ? "active" : ""}
+            onClick={() => setTab("devoluciones")}
+          >
+            <i>↩</i>
+            <span>Arribo de devoluciones</span>
+            {devolucionesArribo.length > 0 && (
+              <em>{devolucionesArribo.length}</em>
+            )}
+          </button>
+          <button
+            className={tab === "incidencias" ? "active" : ""}
+            onClick={() => setTab("incidencias")}
           >
             <i>!</i>
             <span>Incidencias</span>
@@ -13453,9 +13655,74 @@ function SucursalPortal({
         </button>
       </aside>
       <section className="branch-app-content">
-        {!incidents ? (
+        {tab === "garantias" && (
           <SucursalTracePortal casos={casos} onBack={onBack} />
-        ) : (
+        )}
+        {tab === "devoluciones" && (
+          <div className="branch-shell branch-incidents-view">
+            <header>
+              <div className="portal-brand">
+                <b>GX</b>
+                <span>
+                  <strong>Garantías Sucursal</strong>
+                  <small>Zapopan Norte · Sucursal 014</small>
+                </span>
+              </div>
+              <div className="branch-actions">
+                <button onClick={onBack}>⇄ Cambiar módulo</button>
+                <b>LM</b>
+              </div>
+            </header>
+            <main>
+              <div className="titulo branch-title">
+                <div>
+                  <small>TRAZABILIDAD FÍSICA · SUCURSAL 014</small>
+                  <h1>Arribo de devoluciones</h1>
+                  <p>
+                    Recibe en almacén las devoluciones entregadas desde
+                    Mostrador.
+                  </p>
+                </div>
+              </div>
+              <div className="lista arribo-devoluciones">
+                {devolucionesArribo.length === 0 && (
+                  <div className="fila th">
+                    <span>No hay devoluciones pendientes de recibir.</span>
+                  </div>
+                )}
+                {devolucionesArribo.map((d) => (
+                  <div key={d.folio}>
+                    <i>↩</i>
+                    <span>
+                      <strong>
+                        {d.folio} · {d.clienteNombre}
+                      </strong>
+                      <small>
+                        {d.items.length} producto(s) · {formatMoney(d.total)} ·
+                        Serie {d.serie}
+                      </small>
+                    </span>
+                    <em className={d.custodia === "En almacén" ? "ok" : "warn"}>
+                      {d.custodia}
+                    </em>
+                    {d.estado === "Entregada a almacén" ? (
+                      <button
+                        className="primario"
+                        onClick={() => onRecibirDevolucion(d.folio)}
+                      >
+                        Recibir
+                      </button>
+                    ) : (
+                      <button disabled>Recibida</button>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </main>
+            {mensaje && <div className="toast">✓　{mensaje}</div>}
+          </div>
+        )}
+        {tab === "incidencias" && (
           <div className="branch-shell branch-incidents-view">
             <header>
               <div className="portal-brand">
@@ -13495,6 +13762,544 @@ function SucursalPortal({
   );
 }
 
+function MostradorPortal({
+  casos,
+  devoluciones,
+  stock,
+  onCrearGarantia,
+  onCrearDevolucion,
+  onEntregarGarantia,
+  onEntregarDevolucion,
+  onBack,
+}: {
+  casos: Caso[];
+  devoluciones: Devolucion[];
+  stock: Record<string, number>;
+  onCrearGarantia: (e: FormEvent<HTMLFormElement>) => void;
+  onCrearDevolucion: (
+    input: Omit<
+      Devolucion,
+      "folio" | "notaCredito" | "estado" | "custodia" | "creadaEn"
+    >,
+  ) => void;
+  onEntregarGarantia: (id: string) => void;
+  onEntregarDevolucion: (folio: string) => void;
+  onBack: () => void;
+}) {
+  const [selectorOpen, setSelectorOpen] = useState(false),
+    [flow, setFlow] = useState<"garantia" | "devolucion" | null>(null);
+  const misGarantias = casos.filter((c) => c.origenMostrador);
+  return (
+    <div className="branch-shell">
+      <header>
+        <div className="portal-brand">
+          <b>GX</b>
+          <span>
+            <strong>Registro de devoluciones y garantías</strong>
+            <small>Mostrador · Zapopan Norte</small>
+          </span>
+        </div>
+        <div className="branch-actions">
+          <button onClick={onBack}>⇄ Cambiar módulo</button>
+          <b>LM</b>
+        </div>
+      </header>
+      <main>
+        <div className="titulo branch-title">
+          <div>
+            <small>MOSTRADOR · SUCURSAL 014</small>
+            <h1>Registro de devoluciones y garantías</h1>
+            <p>Captura devoluciones y garantías directamente en mostrador.</p>
+          </div>
+          <button className="primario" onClick={() => setSelectorOpen(true)}>
+            ＋ Nuevo registro
+          </button>
+        </div>
+
+        <div className="panel">
+          <div className="cab">
+            <div>
+              <strong>Solicitudes de devolución</strong>
+              <small>{devoluciones.length} registro(s)</small>
+            </div>
+          </div>
+          <div className="lista">
+            {devoluciones.length === 0 && (
+              <div className="fila th">
+                <span>Aún no hay devoluciones capturadas.</span>
+              </div>
+            )}
+            {devoluciones.map((d) => (
+              <div key={d.folio}>
+                <i>↩</i>
+                <span>
+                  <strong>
+                    {d.folio} · {d.clienteNombre}
+                  </strong>
+                  <small>
+                    {d.items.filter((i) => i.cantidad > 0).length} producto(s)
+                    · {formatMoney(d.total)} · {d.tipoAplicacion}
+                  </small>
+                </span>
+                <em className={d.custodia === "En almacén" ? "ok" : "warn"}>
+                  {d.custodia}
+                </em>
+                {d.estado === "Capturada" ? (
+                  <button
+                    className="primario"
+                    onClick={() => onEntregarDevolucion(d.folio)}
+                  >
+                    Entregar a almacén
+                  </button>
+                ) : (
+                  <button disabled>{d.estado}</button>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="panel">
+          <div className="cab">
+            <div>
+              <strong>Solicitudes de garantía</strong>
+              <small>{misGarantias.length} registro(s)</small>
+            </div>
+          </div>
+          <div className="lista">
+            {misGarantias.length === 0 && (
+              <div className="fila th">
+                <span>Aún no hay garantías capturadas.</span>
+              </div>
+            )}
+            {misGarantias.map((c) => {
+              const custodia = custodyOperation(c, []);
+              return (
+                <div key={c.id}>
+                  <i>◎</i>
+                  <span>
+                    <strong>
+                      {c.id} · {c.cliente}
+                    </strong>
+                    <small>
+                      {c.sku} · {c.producto} · {custodia.holder}
+                    </small>
+                  </span>
+                  <em className={c.resultado === "Procede" ? "ok" : "warn"}>
+                    {c.resultado || "En diagnóstico"}
+                  </em>
+                  {!c.entregadoAlmacen ? (
+                    <button
+                      className="primario"
+                      onClick={() => onEntregarGarantia(c.id)}
+                    >
+                      Entregar a almacén
+                    </button>
+                  ) : (
+                    <button disabled>Entregada</button>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </main>
+
+      {selectorOpen && (
+        <div className="fondo" onMouseDown={() => setSelectorOpen(false)}>
+          <div
+            className="modal tipo-movimiento-modal"
+            onMouseDown={(e) => e.stopPropagation()}
+          >
+            <div>
+              <small>NUEVO REGISTRO</small>
+              <button type="button" onClick={() => setSelectorOpen(false)}>
+                ×
+              </button>
+              <h2>¿Qué deseas registrar?</h2>
+              <p>Elige el tipo de movimiento a realizar.</p>
+            </div>
+            <section className="tipo-movimiento-opciones">
+              <button
+                type="button"
+                className="tipo-movimiento-opcion"
+                onClick={() => {
+                  setSelectorOpen(false);
+                  setFlow("devolucion");
+                }}
+              >
+                <i>↩</i>
+                <strong>Devolución</strong>
+                <small>
+                  Captura un documento de venta y sus productos a devolver.
+                </small>
+              </button>
+              <button
+                type="button"
+                className="tipo-movimiento-opcion"
+                onClick={() => {
+                  setSelectorOpen(false);
+                  setFlow("garantia");
+                }}
+              >
+                <i>◎</i>
+                <strong>Garantía</strong>
+                <small>
+                  Abre el flujo de Garantía Express con inspección visual.
+                </small>
+              </button>
+            </section>
+            <footer>
+              <button type="button" onClick={() => setSelectorOpen(false)}>
+                Cancelar
+              </button>
+            </footer>
+          </div>
+        </div>
+      )}
+
+      {flow === "garantia" && (
+        <NewRequestModal
+          onClose={() => setFlow(null)}
+          onSubmit={(e) => {
+            onCrearGarantia(e);
+            setFlow(null);
+          }}
+          stock={stock}
+        />
+      )}
+      {flow === "devolucion" && (
+        <DevolucionModal
+          onClose={() => setFlow(null)}
+          onSubmit={(input) => {
+            onCrearDevolucion(input);
+            setFlow(null);
+          }}
+        />
+      )}
+    </div>
+  );
+}
+function DevolucionModal({
+  onClose,
+  onSubmit,
+}: {
+  onClose: () => void;
+  onSubmit: (
+    input: Omit<
+      Devolucion,
+      "folio" | "notaCredito" | "estado" | "custodia" | "creadaEn"
+    >,
+  ) => void;
+}) {
+  const [documento, setDocumento] = useState(""),
+    [serie, setSerie] = useState(""),
+    [buscado, setBuscado] = useState(false),
+    [factura, setFactura] = useState<(typeof facturas)[number] | null>(null),
+    [lineas, setLineas] = useState<DevolucionLinea[]>([]),
+    [scanCode, setScanCode] = useState(""),
+    [paso, setPaso] = useState<"captura" | "movimiento">("captura"),
+    [applicationType, setApplicationType] = useState<Aplicacion>(
+      "Aplicado a factura",
+    );
+  const cliente = factura
+    ? clientes.find((c) => c.id === factura.clienteId)
+    : null;
+  const buscar = () => {
+    setBuscado(true);
+    const encontrada = facturas.find(
+      (f) =>
+        f.folio.toUpperCase() === documento.trim().toUpperCase() &&
+        f.serie.toUpperCase() === serie.trim().toUpperCase(),
+    );
+    setFactura(encontrada || null);
+    setLineas(encontrada ? lineasDeFactura(encontrada) : []);
+  };
+  const actualizarCantidad = (sku: string, cantidad: number) => {
+    setLineas((x) =>
+      x.map((l) =>
+        l.sku === sku
+          ? {
+              ...l,
+              cantidad: Math.max(
+                0,
+                Math.min(cantidad || 0, l.cantidadDisponible),
+              ),
+            }
+          : l,
+      ),
+    );
+  };
+  const actualizarDescuento = (sku: string, descuento: number) => {
+    setLineas((x) =>
+      x.map((l) => (l.sku === sku ? { ...l, descuento } : l)),
+    );
+  };
+  const actualizarMotivo = (sku: string, motivo: string) => {
+    setLineas((x) => x.map((l) => (l.sku === sku ? { ...l, motivo } : l)));
+  };
+  const escanear = () => {
+    const codigo = scanCode.trim().toUpperCase();
+    setScanCode("");
+    const linea = lineas.find((l) => l.sku === codigo);
+    if (!linea) return;
+    actualizarCantidad(codigo, linea.cantidad + 1);
+  };
+  const subtotal = lineas.reduce(
+      (acc, l) => acc + l.cantidad * l.precio - l.descuento,
+      0,
+    ),
+    iva = subtotal * 0.16,
+    total = subtotal + iva,
+    listo = lineas.some((l) => l.cantidad > 0);
+  const mensaje =
+    applicationType === "Anticipo"
+      ? "Se generará un anticipo en la cuenta del cliente."
+      : applicationType === "Aplicado a factura"
+        ? `Se generará la nota de crédito y aplicará a la factura ${factura?.folio}.`
+        : "Se generará la nota de crédito y la devolución se entregará mediante un código QR de un solo uso.";
+  const aceptar = async () => {
+    if (!(await askQuestion("¿Confirmas la captura de esta devolución?")))
+      return;
+    setPaso("movimiento");
+  };
+  const confirmarMovimiento = async () => {
+    if (
+      !(await askQuestion(
+        `¿Confirmas aplicar el movimiento y generar la nota de crédito por ${formatMoney(total)}?`,
+      ))
+    )
+      return;
+    if (!factura || !cliente) return;
+    onSubmit({
+      documento: factura.folio,
+      serie: factura.serie,
+      clienteId: cliente.id,
+      clienteNombre: cliente.nombre,
+      vendedorId: cliente.vendedorId,
+      sucursal: factura.sucursal,
+      items: lineas,
+      subtotal,
+      iva,
+      total,
+      tipoAplicacion: applicationType,
+    });
+  };
+  return (
+    <div className="fondo" onMouseDown={onClose}>
+      <div
+        className="modal devolucion-modal"
+        onMouseDown={(e) => e.stopPropagation()}
+      >
+        <div>
+          <small>REGISTRO DE DEVOLUCIONES Y GARANTÍAS</small>
+          <button type="button" onClick={onClose}>
+            ×
+          </button>
+          <h2>Nueva devolución</h2>
+          <p>Identifica el documento de venta y los productos a devolver.</p>
+        </div>
+        {paso === "captura" && (
+          <>
+            <section>
+              <label>
+                Documento (factura o ticket)
+                <input
+                  value={documento}
+                  onChange={(e) => setDocumento(e.target.value)}
+                  placeholder="FA-847219"
+                />
+              </label>
+              <label>
+                Serie
+                <input
+                  value={serie}
+                  onChange={(e) => setSerie(e.target.value)}
+                  placeholder="A"
+                />
+              </label>
+            </section>
+            <div className="check">
+              <button
+                type="button"
+                className="primario"
+                onClick={buscar}
+                disabled={!documento || !serie}
+              >
+                Buscar documento
+              </button>
+            </div>
+            {buscado && !factura && (
+              <p className="modal-error">
+                No se encontró un documento válido con ese folio y serie.
+                Verifica los datos e intenta nuevamente.
+              </p>
+            )}
+            {factura && cliente && (
+              <>
+                <section>
+                  <label>
+                    Cliente
+                    <input value={cliente.nombre} disabled />
+                  </label>
+                  <label>
+                    Sucursal
+                    <input value={factura.sucursal} disabled />
+                  </label>
+                  <label>
+                    ClienteID
+                    <input value={cliente.id} disabled />
+                  </label>
+                  <label>
+                    VendedorID
+                    <input value={cliente.vendedorId} disabled />
+                  </label>
+                </section>
+                <div className="devolucion-lineas">
+                  <div className="devolucion-linea th">
+                    <span>Código</span>
+                    <span>Descripción</span>
+                    <span>Disponible</span>
+                    <span>Cantidad</span>
+                    <span>Precio</span>
+                    <span>Descuento</span>
+                    <span>Motivo</span>
+                    <span>Importe</span>
+                  </div>
+                  {lineas.map((l) => (
+                    <div className="devolucion-linea" key={l.sku}>
+                      <span>{l.sku}</span>
+                      <span>{l.descripcion}</span>
+                      <span>{l.cantidadDisponible - l.cantidad}</span>
+                      <span>
+                        <input
+                          type="number"
+                          min={0}
+                          max={l.cantidadDisponible}
+                          value={l.cantidad}
+                          onChange={(e) =>
+                            actualizarCantidad(l.sku, Number(e.target.value))
+                          }
+                        />
+                      </span>
+                      <span>{formatMoney(l.precio)}</span>
+                      <span>
+                        <input
+                          type="number"
+                          min={0}
+                          value={l.descuento}
+                          onChange={(e) =>
+                            actualizarDescuento(l.sku, Number(e.target.value))
+                          }
+                        />
+                      </span>
+                      <span>
+                        <select
+                          value={l.motivo}
+                          onChange={(e) =>
+                            actualizarMotivo(l.sku, e.target.value)
+                          }
+                        >
+                          {motivosDevolucion.map((m) => (
+                            <option key={m}>{m}</option>
+                          ))}
+                        </select>
+                      </span>
+                      <span>{formatMoney(l.cantidad * l.precio - l.descuento)}</span>
+                    </div>
+                  ))}
+                  <div className="devolucion-scan">
+                    <label>
+                      Escanear código de barras
+                      <input
+                        value={scanCode}
+                        onChange={(e) => setScanCode(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") {
+                            e.preventDefault();
+                            escanear();
+                          }
+                        }}
+                        placeholder="Escanea o captura el código y presiona Enter"
+                      />
+                    </label>
+                  </div>
+                </div>
+                <div className="devolucion-totales">
+                  <span>
+                    Subtotal <b>{formatMoney(subtotal)}</b>
+                  </span>
+                  <span>
+                    IVA <b>{formatMoney(iva)}</b>
+                  </span>
+                  <span>
+                    Total <b>{formatMoney(total)}</b>
+                  </span>
+                </div>
+              </>
+            )}
+          </>
+        )}
+        {paso === "movimiento" && factura && cliente && (
+          <>
+            <section>
+              <label className="doble">
+                Tipo de movimiento
+                <select
+                  value={applicationType}
+                  onChange={(e) =>
+                    setApplicationType(e.target.value as Aplicacion)
+                  }
+                >
+                  <option>Anticipo</option>
+                  <option>Aplicado a factura</option>
+                  <option>Devolución de efectivo</option>
+                </select>
+              </label>
+            </section>
+            <div className="application-message">{mensaje}</div>
+            {applicationType === "Devolución de efectivo" && (
+              <div className="qr-notice">
+                <i>▦</i>
+                <span>
+                  <b>Se generará un código QR de un solo uso</b>
+                  <small>
+                    El código quedará integrado en la nota de crédito y se
+                    invalidará al realizar la devolución. Valida la identidad
+                    del beneficiario antes de aplicarlo.
+                  </small>
+                </span>
+              </div>
+            )}
+          </>
+        )}
+        <footer>
+          <button type="button" onClick={onClose}>
+            Cancelar
+          </button>
+          {paso === "captura" ? (
+            <button
+              type="button"
+              className="primario"
+              disabled={!listo}
+              onClick={aceptar}
+            >
+              Aceptar
+            </button>
+          ) : (
+            <button
+              type="button"
+              className="primario"
+              onClick={confirmarMovimiento}
+            >
+              Sí, aplicar movimiento
+            </button>
+          )}
+        </footer>
+      </div>
+    </div>
+  );
+}
 function LegacySucursalTracePortal({
   casos,
   onBack,
@@ -14255,6 +15060,20 @@ function SucursalTracePortal({
     [dueFilter, setDueFilter] = useState<
       "all" | "expired" | "today" | "upcoming"
     >("all");
+  useEffect(() => {
+    setPending((x) => {
+      const yaListado = new Set([
+        ...x.map((p) => p.id),
+        ...openBox.map((p) => p.id),
+        ...inventory.map((p) => p.id),
+      ]);
+      const entrantes = casos.filter(
+        (c) => c.origenMostrador && c.entregadoAlmacen && !yaListado.has(c.id),
+      );
+      return entrantes.length ? [...entrantes, ...x] : x;
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [casos]);
   const notify = (m: string) => {
       setToast(m);
       setTimeout(() => setToast(""), 2400);
@@ -14454,7 +15273,9 @@ function SucursalTracePortal({
                   >
                     <i>{i % 3 === 2 ? "▤" : "↓"}</i>
                     <div>
-                      <small>{c.id}</small>
+                      <small>
+                        {c.id} · {c.origenMostrador ? "Mostrador" : "Garantía Express"}
+                      </small>
                       <strong>{c.producto}</strong>
                       <p>
                         {c.sku} · {c.cliente}
@@ -14792,33 +15613,87 @@ const clientes = [
     nombre: "CLIENTE MOSTRADOR",
     sucursal: "Zapopan Norte",
     canal: "Retail" as const,
+    vendedorId: "V-014",
   },
   {
     id: "30214",
     nombre: "REFACCIONARIA EL VOLANTE",
     sucursal: "GDL Centro",
     canal: "No Retail" as const,
+    vendedorId: "V-002",
   },
   {
     id: "10872",
     nombre: "TALLER AUTOMOTRIZ RÍOS",
     sucursal: "León Torres",
     canal: "No Retail" as const,
+    vendedorId: "V-007",
   },
   {
     id: "41590",
     nombre: "GRUPO MOTOR PLUS",
     sucursal: "Aguascalientes Sur",
     canal: "No Retail" as const,
+    vendedorId: "V-011",
   },
 ];
+const motivosDevolucion = [
+  "Producto defectuoso",
+  "Producto incompleto",
+  "Error en la venta",
+  "Cliente cambió de opinión",
+  "No corresponde al pedido",
+];
+function parseMoney(v: string): number {
+  return Number(v.replace(/[^0-9.-]/g, "")) || 0;
+}
+function formatMoney(v: number): string {
+  return v.toLocaleString("es-MX", { style: "currency", currency: "MXN" });
+}
+type DevolucionLinea = {
+  sku: string;
+  descripcion: string;
+  precio: number;
+  cantidadDisponible: number;
+  cantidad: number;
+  descuento: number;
+  motivo: string;
+};
+type Devolucion = {
+  folio: string;
+  documento: string;
+  serie: string;
+  clienteId: string;
+  clienteNombre: string;
+  vendedorId: string;
+  sucursal: string;
+  items: { sku: string; descripcion: string; cantidad: number; precio: number; descuento: number; motivo: string }[];
+  subtotal: number;
+  iva: number;
+  total: number;
+  tipoAplicacion: Aplicacion;
+  notaCredito: string;
+  estado: "Capturada" | "Entregada a almacén" | "Recibida en almacén";
+  custodia: "En mostrador" | "En almacén";
+  creadaEn: string;
+};
 const productos = [
   { sku: "BO-AL394", descripcion: "ALTERNADOR BOSCH 12V 90A", bateria: false },
   { sku: "LTH-H47", descripcion: "BATERÍA LTH H-47 600 CCA", bateria: true },
   { sku: "GMB-1256", descripcion: "BOMBA DE AGUA GMB", bateria: false },
   { sku: "DE-2341", descripcion: "SENSOR DE OXÍGENO DENSO", bateria: false },
 ];
-const facturas = [
+const facturas: {
+  folio: string;
+  fecha: string;
+  sucursal: string;
+  cantidad: number;
+  precio: string;
+  clienteId: string;
+  sku: string;
+  serie: string;
+  items?: { sku: string; cantidadDisponible: number }[];
+}[] = [
   {
     folio: "FA-847219",
     fecha: "18 ago 2026",
@@ -14827,6 +15702,11 @@ const facturas = [
     precio: "$3,840.00",
     clienteId: "30214",
     sku: "BO-AL394",
+    serie: "A",
+    items: [
+      { sku: "BO-AL394", cantidadDisponible: 1 },
+      { sku: "DE-2341", cantidadDisponible: 2 },
+    ],
   },
   {
     folio: "FA-842716",
@@ -14836,6 +15716,7 @@ const facturas = [
     precio: "$3,790.00",
     clienteId: "30214",
     sku: "BO-AL394",
+    serie: "A",
   },
   {
     folio: "FA-819044",
@@ -14845,6 +15726,7 @@ const facturas = [
     precio: "$3,925.00",
     clienteId: "30214",
     sku: "BO-AL394",
+    serie: "B",
   },
   {
     folio: "FA-832604",
@@ -14854,6 +15736,7 @@ const facturas = [
     precio: "$2,650.00",
     clienteId: "1",
     sku: "LTH-H47",
+    serie: "B",
   },
   {
     folio: "FA-825118",
@@ -14863,6 +15746,7 @@ const facturas = [
     precio: "$2,720.00",
     clienteId: "1",
     sku: "LTH-H47",
+    serie: "B",
   },
   {
     folio: "FA-814502",
@@ -14872,6 +15756,11 @@ const facturas = [
     precio: "$2,590.00",
     clienteId: "1",
     sku: "LTH-H47",
+    serie: "A",
+    items: [
+      { sku: "LTH-H47", cantidadDisponible: 2 },
+      { sku: "GMB-1256", cantidadDisponible: 1 },
+    ],
   },
   {
     folio: "FA-801173",
@@ -14881,8 +15770,26 @@ const facturas = [
     precio: "$1,890.00",
     clienteId: "10872",
     sku: "GMB-1256",
+    serie: "C",
   },
 ];
+function lineasDeFactura(f: (typeof facturas)[number]): DevolucionLinea[] {
+  const base = f.items || [{ sku: f.sku, cantidadDisponible: f.cantidad }];
+  return base.map((it) => {
+    const prod = productos.find((p) => p.sku === it.sku);
+    const precioRef =
+      it.sku === f.sku ? parseMoney(f.precio) : parseMoney(f.precio) * 0.6;
+    return {
+      sku: it.sku,
+      descripcion: prod?.descripcion || it.sku,
+      precio: precioRef,
+      cantidadDisponible: it.cantidadDisponible,
+      cantidad: 0,
+      descuento: 0,
+      motivo: motivosDevolucion[0],
+    };
+  });
+}
 const obsProcede =
   "SE DIAGNOSTICA QUE ESTE PRODUCTO PROCEDE COMO GARANTÍA EXPRESS, TOMANDO EN CUENTA QUE NO SE OBSERVAN MANIPULACIONES, GOLPES POR MALA INSTALACIÓN, ADEMÁS DE QUE PERTENECE A LA FAMILIA DE APYMSA. ESPERAMOS PRONTO LA REALIZACIÓN DE SU NUEVO PEDIDO.";
 const obsNoProcede =
@@ -14909,9 +15816,11 @@ function NewRequestModal({
     [batteryMonths, setBatteryMonths] = useState(19),
     [batteryApplied, setBatteryApplied] = useState(false),
     [ncConfirm, setNcConfirm] = useState(false),
+    [checks, setChecks] = useState([false, false, false]),
     [applicationType, setApplicationType] = useState<
       "Anticipo" | "Aplicado a factura" | "Devolución de efectivo"
     >("Aplicado a factura");
+  const inspeccionCompleta = checks.every(Boolean);
   const cambiarResultado = (r: "Procede" | "No procede") => {
     setResultado(r);
     setObservacion(r === "Procede" ? obsProcede : obsNoProcede);
@@ -14934,6 +15843,7 @@ function NewRequestModal({
     setBatteryMonths(19);
     setBatteryApplied(false);
     setDiagnostico(false);
+    setChecks([false, false, false]);
   };
   const elegirProducto = (valor: string) => {
     setSkuTexto(valor);
@@ -15426,6 +16336,28 @@ function NewRequestModal({
             />
           </div>
         )}
+        {listo && (
+          <div className="inspeccion-visual">
+            <h3>Inspección visual</h3>
+            {[
+              "El producto corresponde al SKU y factura seleccionados",
+              "No presenta manipulación, golpes o mala instalación",
+              "La evidencia y condición física fueron revisadas",
+            ].map((x, i) => (
+              <label className={checks[i] ? "checked" : ""} key={x}>
+                <input
+                  type="checkbox"
+                  checked={checks[i]}
+                  onChange={() =>
+                    setChecks((a) => a.map((v, j) => (j === i ? !v : v)))
+                  }
+                />
+                <i>{checks[i] ? "✓" : ""}</i>
+                <span>{x}</span>
+              </label>
+            ))}
+          </div>
+        )}
         <footer>
           <button type="button" onClick={onClose}>
             Cancelar
@@ -15433,7 +16365,11 @@ function NewRequestModal({
           <button
             type="button"
             className="primario"
-            disabled={!listo || (Boolean(producto?.bateria) && !batteryApplied)}
+            disabled={
+              !listo ||
+              (Boolean(producto?.bateria) && !batteryApplied) ||
+              !inspeccionCompleta
+            }
             onClick={() => setDiagnostico(true)}
           >
             Confirmar inspección　→
