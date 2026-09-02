@@ -589,6 +589,7 @@ type Caso = {
   caja?: string;
   origenMostrador?: boolean;
   entregadoAlmacen?: boolean;
+  usuario?: string;
 };
 const data: Caso[] = [
   {
@@ -4127,6 +4128,7 @@ export default function Home() {
       importeBonificacion: resultado === "Procede" ? importe : undefined,
       factura: folio,
       fechaSolicitud: "25 ago 2026 · Ahora",
+      usuario: "Andrea Martínez",
     };
     setInvoiceStock((s) => ({
       ...s,
@@ -4183,6 +4185,7 @@ export default function Home() {
       fechaSolicitud: "1 sep 2026 · Ahora",
       origenMostrador: true,
       custodia: "Con el cliente",
+      usuario: "Luis Martínez",
     };
     setInvoiceStock((s) => ({
       ...s,
@@ -4199,7 +4202,7 @@ export default function Home() {
   function crearDevolucion(
     input: Omit<
       Devolucion,
-      "folio" | "notaCredito" | "estado" | "custodia" | "creadaEn"
+      "folio" | "notaCredito" | "estado" | "custodia" | "creadaEn" | "usuario"
     >,
   ) {
     const n = devoluciones.length,
@@ -4210,6 +4213,7 @@ export default function Home() {
         estado: "Capturada",
         custodia: "En mostrador",
         creadaEn: "1 sep 2026 · Ahora",
+        usuario: "Luis Martínez",
       };
     setDevoluciones((x) => [d, ...x]);
     imprimirNotaCreditoDevolucion(d);
@@ -4309,6 +4313,7 @@ export default function Home() {
           onBack={() => setPortal(null)}
         />
         <QuestionModalHost />
+        <InfoModalHost />
       </>
     );
   if (portal === "mostrador")
@@ -6182,11 +6187,19 @@ function Tabla({
         return (
           <button className="fila" key={c.id} onClick={() => elegir(c)}>
             <span>
-              <b>
-                {c.id} {c.origenBot && <em className="bot-origin">BOT</em>}
-              </b>
-              <small>{c.fechaSolicitud || "Fecha pendiente"}</small>
+              <b>{c.id}</b>
+              <small>
+                {c.fechaSolicitud || "Fecha pendiente"}
+                {c.usuario ? ` · ${c.usuario}` : ""}
+              </small>
               <em className="request-branch">{c.sucursal}</em>
+              <em className="bot-origin">
+                {c.origenBot
+                  ? "BOT"
+                  : c.origenMostrador
+                    ? "Mostrador"
+                    : "Garantías Central"}
+              </em>
             </span>
             <span>
               <b>{c.cliente}</b>
@@ -13596,10 +13609,15 @@ function SucursalPortal({
       "garantias",
     ),
     [collapsed, setCollapsed] = useState(false),
-    [mensaje, setMensaje] = useState("");
+    [mensaje, setMensaje] = useState(""),
+    [recepcion, setRecepcion] = useState<Devolucion | null>(null),
+    [verDetalle, setVerDetalle] = useState<Devolucion | null>(null);
   const devolucionesArribo = devoluciones.filter(
-    (d) => d.estado !== "Capturada",
-  );
+      (d) => d.estado !== "Capturada",
+    ),
+    pendientesMostrador = devoluciones.filter(
+      (d) => d.estado === "Capturada",
+    );
   const avisar = (m: string) => {
     setMensaje(m);
     setTimeout(() => setMensaje(""), 2500);
@@ -13684,14 +13702,43 @@ function SucursalPortal({
                   </p>
                 </div>
               </div>
-              <div className="lista arribo-devoluciones">
+              {pendientesMostrador.length > 0 && (
+                <div className="pendientes-mostrador">
+                  <h3>Pendientes en Mostrador</h3>
+                  <p>
+                    Devoluciones capturadas que aún no se entregan a almacén.
+                  </p>
+                  <ul>
+                    {pendientesMostrador.map((d) => (
+                      <li key={d.folio}>
+                        <span>
+                          <b>
+                            {d.folio} · {d.clienteNombre}
+                          </b>
+                          {d.items.filter((i) => i.cantidad > 0).length}{" "}
+                          producto(s) · {formatMoney(d.total)}
+                        </span>
+                        <span>{d.creadaEn}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+              <div className="lista lista-espaciada arribo-devoluciones">
                 {devolucionesArribo.length === 0 && (
                   <div className="fila th">
                     <span>No hay devoluciones pendientes de recibir.</span>
                   </div>
                 )}
                 {devolucionesArribo.map((d) => (
-                  <div key={d.folio}>
+                  <div
+                    key={d.folio}
+                    onClick={() =>
+                      d.estado === "Entregada a almacén"
+                        ? setRecepcion(d)
+                        : setVerDetalle(d)
+                    }
+                  >
                     <i>↩</i>
                     <span>
                       <strong>
@@ -13701,17 +13748,15 @@ function SucursalPortal({
                         {d.items.length} producto(s) · {formatMoney(d.total)} ·
                         Serie {d.serie}
                       </small>
+                      <small>
+                        {d.creadaEn} · {d.usuario}
+                      </small>
                     </span>
                     <em className={d.custodia === "En almacén" ? "ok" : "warn"}>
                       {d.custodia}
                     </em>
                     {d.estado === "Entregada a almacén" ? (
-                      <button
-                        className="primario"
-                        onClick={() => onRecibirDevolucion(d.folio)}
-                      >
-                        Recibir
-                      </button>
+                      <button className="primario">Recibir</button>
                     ) : (
                       <button disabled>Recibida</button>
                     )}
@@ -13720,6 +13765,22 @@ function SucursalPortal({
               </div>
             </main>
             {mensaje && <div className="toast">✓　{mensaje}</div>}
+            {recepcion && (
+              <RecepcionDevolucionModal
+                devolucion={recepcion}
+                onClose={() => setRecepcion(null)}
+                onConfirmar={(folio) => {
+                  onRecibirDevolucion(folio);
+                  setRecepcion(null);
+                }}
+              />
+            )}
+            {verDetalle && (
+              <DevolucionDetalleModal
+                devolucion={verDetalle}
+                onClose={() => setVerDetalle(null)}
+              />
+            )}
           </div>
         )}
         {tab === "incidencias" && (
@@ -13779,7 +13840,7 @@ function MostradorPortal({
   onCrearDevolucion: (
     input: Omit<
       Devolucion,
-      "folio" | "notaCredito" | "estado" | "custodia" | "creadaEn"
+      "folio" | "notaCredito" | "estado" | "custodia" | "creadaEn" | "usuario"
     >,
   ) => void;
   onEntregarGarantia: (id: string) => void;
@@ -13787,7 +13848,10 @@ function MostradorPortal({
   onBack: () => void;
 }) {
   const [selectorOpen, setSelectorOpen] = useState(false),
-    [flow, setFlow] = useState<"garantia" | "devolucion" | null>(null);
+    [flow, setFlow] = useState<"garantia" | "devolucion" | null>(null),
+    [detalleDevolucion, setDetalleDevolucion] = useState<Devolucion | null>(
+      null,
+    );
   const misGarantias = casos.filter((c) => c.origenMostrador);
   return (
     <div className="branch-shell">
@@ -13823,14 +13887,14 @@ function MostradorPortal({
               <small>{devoluciones.length} registro(s)</small>
             </div>
           </div>
-          <div className="lista">
+          <div className="lista lista-espaciada">
             {devoluciones.length === 0 && (
               <div className="fila th">
                 <span>Aún no hay devoluciones capturadas.</span>
               </div>
             )}
             {devoluciones.map((d) => (
-              <div key={d.folio}>
+              <div key={d.folio} onClick={() => setDetalleDevolucion(d)}>
                 <i>↩</i>
                 <span>
                   <strong>
@@ -13840,6 +13904,9 @@ function MostradorPortal({
                     {d.items.filter((i) => i.cantidad > 0).length} producto(s)
                     · {formatMoney(d.total)} · {d.tipoAplicacion}
                   </small>
+                  <small>
+                    {d.creadaEn} · {d.usuario}
+                  </small>
                 </span>
                 <em className={d.custodia === "En almacén" ? "ok" : "warn"}>
                   {d.custodia}
@@ -13847,7 +13914,10 @@ function MostradorPortal({
                 {d.estado === "Capturada" ? (
                   <button
                     className="primario"
-                    onClick={() => onEntregarDevolucion(d.folio)}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onEntregarDevolucion(d.folio);
+                    }}
                   >
                     Entregar a almacén
                   </button>
@@ -13866,14 +13936,15 @@ function MostradorPortal({
               <small>{misGarantias.length} registro(s)</small>
             </div>
           </div>
-          <div className="lista">
+          <div className="lista lista-espaciada">
             {misGarantias.length === 0 && (
               <div className="fila th">
                 <span>Aún no hay garantías capturadas.</span>
               </div>
             )}
             {misGarantias.map((c) => {
-              const custodia = custodyOperation(c, []);
+              const custodia = custodyOperation(c, []),
+                noProcede = c.resultado === "No procede";
               return (
                 <div key={c.id}>
                   <i>◎</i>
@@ -13884,11 +13955,14 @@ function MostradorPortal({
                     <small>
                       {c.sku} · {c.producto} · {custodia.holder}
                     </small>
+                    <small>
+                      {c.fechaSolicitud} · {c.usuario}
+                    </small>
                   </span>
                   <em className={c.resultado === "Procede" ? "ok" : "warn"}>
                     {c.resultado || "En diagnóstico"}
                   </em>
-                  {!c.entregadoAlmacen ? (
+                  {noProcede ? null : !c.entregadoAlmacen ? (
                     <button
                       className="primario"
                       onClick={() => onEntregarGarantia(c.id)}
@@ -13977,6 +14051,240 @@ function MostradorPortal({
           }}
         />
       )}
+      {detalleDevolucion && (
+        <DevolucionDetalleModal
+          devolucion={detalleDevolucion}
+          onClose={() => setDetalleDevolucion(null)}
+        />
+      )}
+    </div>
+  );
+}
+function DevolucionDetalleModal({
+  devolucion,
+  onClose,
+}: {
+  devolucion: Devolucion;
+  onClose: () => void;
+}) {
+  return (
+    <div className="fondo" onMouseDown={onClose}>
+      <div
+        className="modal devolucion-modal"
+        onMouseDown={(e) => e.stopPropagation()}
+      >
+        <div>
+          <small>REGISTRO DE DEVOLUCIONES Y GARANTÍAS</small>
+          <button type="button" onClick={onClose}>
+            ×
+          </button>
+          <h2>Detalle de la devolución</h2>
+          <p>
+            {devolucion.folio} · {devolucion.creadaEn} · {devolucion.usuario}
+          </p>
+        </div>
+        <section>
+          <label>
+            Cliente
+            <input value={devolucion.clienteNombre} disabled />
+          </label>
+          <label>
+            Sucursal
+            <input value={devolucion.sucursal} disabled />
+          </label>
+          <label>
+            Documento / Serie
+            <input
+              value={`${devolucion.documento} · ${devolucion.serie}`}
+              disabled
+            />
+          </label>
+          <label>
+            Nota de crédito
+            <input value={devolucion.notaCredito} disabled />
+          </label>
+        </section>
+        <div className="devolucion-lineas">
+          <div className="devolucion-linea detalle-linea th">
+            <span>Código</span>
+            <span>Descripción</span>
+            <span>Cantidad</span>
+            <span>Precio</span>
+            <span>Descuento</span>
+            <span>Motivo</span>
+            <span>Importe</span>
+          </div>
+          {devolucion.items
+            .filter((i) => i.cantidad > 0)
+            .map((i) => (
+              <div className="devolucion-linea detalle-linea" key={i.sku}>
+                <span>{i.sku}</span>
+                <span>{i.descripcion}</span>
+                <span>{i.cantidad}</span>
+                <span>{formatMoney(i.precio)}</span>
+                <span>{formatMoney(i.descuento)}</span>
+                <span>{i.motivo}</span>
+                <span>{formatMoney(i.cantidad * i.precio - i.descuento)}</span>
+              </div>
+            ))}
+        </div>
+        <div className="devolucion-totales">
+          <span>
+            Subtotal <b>{formatMoney(devolucion.subtotal)}</b>
+          </span>
+          <span>
+            IVA <b>{formatMoney(devolucion.iva)}</b>
+          </span>
+          <span>
+            Total <b>{formatMoney(devolucion.total)}</b>
+          </span>
+        </div>
+        <footer>
+          <button type="button" onClick={onClose}>
+            Cerrar
+          </button>
+        </footer>
+      </div>
+    </div>
+  );
+}
+function RecepcionDevolucionModal({
+  devolucion,
+  onClose,
+  onConfirmar,
+}: {
+  devolucion: Devolucion;
+  onClose: () => void;
+  onConfirmar: (folio: string) => void;
+}) {
+  const items = devolucion.items.filter((i) => i.cantidad > 0);
+  const [recibido, setRecibido] = useState<Record<string, number>>(() =>
+    Object.fromEntries(items.map((i) => [i.sku, 0])),
+  );
+  const [scanCode, setScanCode] = useState("");
+  const registrarPieza = (skuCrudo: string) => {
+    const sku = skuCrudo.trim().toUpperCase();
+    const item = items.find((i) => i.sku === sku);
+    if (!item) {
+      showInfo(`El código "${sku}" no corresponde a esta devolución.`);
+      return;
+    }
+    if ((recibido[sku] || 0) >= item.cantidad) {
+      showInfo(`Ya se registró la cantidad completa de ${item.descripcion}.`);
+      return;
+    }
+    setRecibido((x) => ({ ...x, [sku]: (x[sku] || 0) + 1 }));
+  };
+  const escanear = () => {
+    const codigo = scanCode.trim();
+    setScanCode("");
+    if (!codigo) return;
+    registrarPieza(codigo);
+  };
+  const simularEscaneo = () => {
+    const pendiente = items.find((i) => (recibido[i.sku] || 0) < i.cantidad);
+    if (!pendiente) {
+      showInfo("Todas las piezas de esta devolución ya fueron registradas.");
+      return;
+    }
+    registrarPieza(pendiente.sku);
+  };
+  const actualizarManual = (sku: string, valor: number, max: number) => {
+    setRecibido((x) => ({ ...x, [sku]: Math.max(0, Math.min(valor || 0, max)) }));
+  };
+  const completo = items.every((i) => (recibido[i.sku] || 0) >= i.cantidad);
+  const confirmar = async () => {
+    if (
+      !(await askQuestion(
+        `¿Confirmas la recepción de la devolución ${devolucion.folio} en el almacén de la sucursal?`,
+      ))
+    )
+      return;
+    onConfirmar(devolucion.folio);
+  };
+  return (
+    <div className="fondo" onMouseDown={onClose}>
+      <div
+        className="modal devolucion-modal"
+        onMouseDown={(e) => e.stopPropagation()}
+      >
+        <div>
+          <small>ARRIBO DE DEVOLUCIONES</small>
+          <button type="button" onClick={onClose}>
+            ×
+          </button>
+          <h2>Recepción de devolución</h2>
+          <p>
+            {devolucion.folio} · {devolucion.clienteNombre} · {devolucion.creadaEn}
+          </p>
+        </div>
+        <div className="recepcion-lineas">
+          <div className="recepcion-linea th">
+            <span>Código</span>
+            <span>Descripción</span>
+            <span>Esperado</span>
+            <span>Recibido</span>
+            <span>Estado</span>
+          </div>
+          {items.map((i) => {
+            const cantidad = recibido[i.sku] || 0,
+              ok = cantidad >= i.cantidad;
+            return (
+              <div className="recepcion-linea" key={i.sku}>
+                <span>{i.sku}</span>
+                <span>{i.descripcion}</span>
+                <span>{i.cantidad}</span>
+                <span>
+                  <input
+                    type="number"
+                    min={0}
+                    max={i.cantidad}
+                    value={cantidad}
+                    onChange={(e) =>
+                      actualizarManual(i.sku, Number(e.target.value), i.cantidad)
+                    }
+                  />
+                </span>
+                <em className={ok ? "ok" : "warn"}>
+                  {ok ? "Completo" : "Pendiente"}
+                </em>
+              </div>
+            );
+          })}
+        </div>
+        <div className="devolucion-scan">
+          <label>
+            Escanear código de barras
+            <input
+              value={scanCode}
+              onChange={(e) => setScanCode(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  escanear();
+                }
+              }}
+              placeholder="Escanea o captura el código y presiona Enter"
+            />
+          </label>
+          <button type="button" onClick={simularEscaneo}>
+            Simular escaneo
+          </button>
+        </div>
+        <footer>
+          <button type="button" onClick={onClose}>
+            Cancelar
+          </button>
+          <button
+            type="button"
+            className="primario"
+            disabled={!completo}
+            onClick={confirmar}
+          >
+            Marcar como recibida
+          </button>
+        </footer>
+      </div>
     </div>
   );
 }
@@ -13988,7 +14296,7 @@ function DevolucionModal({
   onSubmit: (
     input: Omit<
       Devolucion,
-      "folio" | "notaCredito" | "estado" | "custodia" | "creadaEn"
+      "folio" | "notaCredito" | "estado" | "custodia" | "creadaEn" | "usuario"
     >,
   ) => void;
 }) {
@@ -13997,6 +14305,7 @@ function DevolucionModal({
     [buscado, setBuscado] = useState(false),
     [factura, setFactura] = useState<(typeof facturas)[number] | null>(null),
     [lineas, setLineas] = useState<DevolucionLinea[]>([]),
+    [scanDocumento, setScanDocumento] = useState(""),
     [scanCode, setScanCode] = useState(""),
     [paso, setPaso] = useState<"captura" | "movimiento">("captura"),
     [applicationType, setApplicationType] = useState<Aplicacion>(
@@ -14015,6 +14324,26 @@ function DevolucionModal({
     setFactura(encontrada || null);
     setLineas(encontrada ? lineasDeFactura(encontrada) : []);
   };
+  const buscarPorFolio = (folioCrudo: string) => {
+    const folio = folioCrudo.trim().toUpperCase();
+    const encontrada = facturas.find((f) => f.folio.toUpperCase() === folio);
+    if (!encontrada) {
+      showInfo(`No se encontró ningún documento con el folio "${folioCrudo}".`);
+      return;
+    }
+    setDocumento(encontrada.folio);
+    setSerie(encontrada.serie);
+    setBuscado(true);
+    setFactura(encontrada);
+    setLineas(lineasDeFactura(encontrada));
+  };
+  const escanearDocumento = () => {
+    const codigo = scanDocumento.trim();
+    setScanDocumento("");
+    if (!codigo) return;
+    buscarPorFolio(codigo);
+  };
+  const simularEscaneoDocumento = () => buscarPorFolio(facturas[0].folio);
   const actualizarCantidad = (sku: string, cantidad: number) => {
     setLineas((x) =>
       x.map((l) =>
@@ -14038,12 +14367,34 @@ function DevolucionModal({
   const actualizarMotivo = (sku: string, motivo: string) => {
     setLineas((x) => x.map((l) => (l.sku === sku ? { ...l, motivo } : l)));
   };
-  const escanear = () => {
-    const codigo = scanCode.trim().toUpperCase();
-    setScanCode("");
+  const registrarEscaneo = (codigoCrudo: string) => {
+    const codigo = codigoCrudo.trim().toUpperCase();
     const linea = lineas.find((l) => l.sku === codigo);
-    if (!linea) return;
+    if (!linea) {
+      showInfo(
+        `El código "${codigoCrudo}" no corresponde a ningún producto de esta factura.`,
+      );
+      return;
+    }
+    if (linea.cantidad >= linea.cantidadDisponible) {
+      showInfo(`Ya se alcanzó la cantidad disponible de ${linea.descripcion}.`);
+      return;
+    }
     actualizarCantidad(codigo, linea.cantidad + 1);
+  };
+  const escanear = () => {
+    const codigo = scanCode.trim();
+    setScanCode("");
+    if (!codigo) return;
+    registrarEscaneo(codigo);
+  };
+  const simularEscaneoLinea = () => {
+    const pendiente = lineas.find((l) => l.cantidad < l.cantidadDisponible);
+    if (!pendiente) {
+      showInfo("No hay más piezas disponibles para escanear en esta factura.");
+      return;
+    }
+    registrarEscaneo(pendiente.sku);
   };
   const subtotal = lineas.reduce(
       (acc, l) => acc + l.cantidad * l.precio - l.descuento,
@@ -14101,6 +14452,25 @@ function DevolucionModal({
         </div>
         {paso === "captura" && (
           <>
+            <div className="escaneo-documento">
+              <label>
+                Escanear documento (factura o ticket)
+                <input
+                  value={scanDocumento}
+                  onChange={(e) => setScanDocumento(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      escanearDocumento();
+                    }
+                  }}
+                  placeholder="Escanea o captura el folio y presiona Enter"
+                />
+              </label>
+              <button type="button" onClick={simularEscaneoDocumento}>
+                Simular escaneo
+              </button>
+            </div>
             <section>
               <label>
                 Documento (factura o ticket)
@@ -14122,7 +14492,7 @@ function DevolucionModal({
             <div className="check">
               <button
                 type="button"
-                className="primario"
+                className="primario buscar-documento-btn"
                 onClick={buscar}
                 disabled={!documento || !serie}
               >
@@ -14223,6 +14593,9 @@ function DevolucionModal({
                         placeholder="Escanea o captura el código y presiona Enter"
                       />
                     </label>
+                    <button type="button" onClick={simularEscaneoLinea}>
+                      Simular escaneo
+                    </button>
                   </div>
                 </div>
                 <div className="devolucion-totales">
@@ -15274,7 +15647,8 @@ function SucursalTracePortal({
                     <i>{i % 3 === 2 ? "▤" : "↓"}</i>
                     <div>
                       <small>
-                        {c.id} · {c.origenMostrador ? "Mostrador" : "Garantía Express"}
+                        {c.id} · {c.origenMostrador ? "Mostrador" : "Garantías Central"}
+                        {c.usuario ? ` · ${c.usuario}` : ""}
                       </small>
                       <strong>{c.producto}</strong>
                       <p>
@@ -15676,6 +16050,7 @@ type Devolucion = {
   estado: "Capturada" | "Entregada a almacén" | "Recibida en almacén";
   custodia: "En mostrador" | "En almacén";
   creadaEn: string;
+  usuario: string;
 };
 const productos = [
   { sku: "BO-AL394", descripcion: "ALTERNADOR BOSCH 12V 90A", bateria: false },
