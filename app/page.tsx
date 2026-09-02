@@ -15370,13 +15370,14 @@ function SucursalTracePortal({
   casos: Caso[];
   onBack: () => void;
 }) {
+  const casosArribo = casos.filter((c) => c.resultado !== "No procede");
   const seeded = [
-    ...casos.slice(0, 4).map((caso, index) => ({
+    ...casosArribo.slice(0, 4).map((caso, index) => ({
       ...caso,
       custodia: index === 2 ? "Con el cliente" : "Con el asesor",
     })),
     {
-      ...casos[0],
+      ...casosArribo[0],
       id: "GE-260824-1851",
       producto: "Amortiguador Monroe",
       sku: "MO-7281",
@@ -15385,7 +15386,7 @@ function SucursalTracePortal({
       custodia: "Con el cliente",
     },
     {
-      ...casos[1],
+      ...casosArribo[1],
       id: "GE-260824-1850",
       producto: "Marcha Bosch",
       sku: "BO-MA810",
@@ -15394,7 +15395,7 @@ function SucursalTracePortal({
       custodia: "Con el asesor",
     },
     {
-      ...casos[2],
+      ...casosArribo[2],
       id: "GE-260824-1847",
       producto: "Kit de balero de rueda SKF",
       sku: "SKF-VKBA",
@@ -15402,7 +15403,7 @@ function SucursalTracePortal({
       custodia: "Con el cliente",
     },
     {
-      ...casos[3],
+      ...casosArribo[3],
       id: "GE-260824-1846",
       producto: "Filtro de aceite Valeo",
       sku: "VA-SF123",
@@ -15441,7 +15442,11 @@ function SucursalTracePortal({
         ...inventory.map((p) => p.id),
       ]);
       const entrantes = casos.filter(
-        (c) => c.origenMostrador && c.entregadoAlmacen && !yaListado.has(c.id),
+        (c) =>
+          c.origenMostrador &&
+          c.entregadoAlmacen &&
+          c.resultado !== "No procede" &&
+          !yaListado.has(c.id),
       );
       return entrantes.length ? [...entrantes, ...x] : x;
     });
