@@ -6080,11 +6080,11 @@ function imprimirNotaCreditoDevolucion(d: Devolucion) {
     .filter((i) => i.cantidad > 0)
     .map(
       (i) =>
-        `<tr><td>${i.sku}</td><td>${i.descripcion}</td><td>${i.motivo}</td><td>${i.cantidad}</td><td>${formatMoney(i.precio)}</td><td>${formatMoney(i.descuento)}</td><td>${formatMoney(i.cantidad * i.precio - i.descuento)}</td></tr>`,
+        `<tr><td>${i.sku}</td><td>${i.descripcion}</td><td>${i.motivo}</td><td>${i.cantidad}</td><td>${formatMoney(i.precio)}</td><td>${i.descuento}%</td><td>${formatMoney(i.cantidad * i.precio * (1 - i.descuento / 100))}</td></tr>`,
     )
     .join("");
   w.document.write(
-    `<html><head><title>Nota de crédito ${d.notaCredito}</title><style>@page{size:letter;margin:0}*{box-sizing:border-box}body{font-family:Arial;color:#172338;margin:0}.doc{width:7.2in;min-height:9.7in;padding:.55in .65in}.head{border-bottom:4px solid #173d79;padding-bottom:20px;display:flex;justify-content:space-between;gap:24px}.brand{background:#173d79;color:white;padding:18px 28px;font-size:24px;font-weight:bold}.head small{color:#3268ab;font-weight:bold}.head h1{margin:6px 0;font-size:22px}.meta,.data{display:grid;grid-template-columns:repeat(3,1fr);gap:1px;background:#dfe6ee;margin-top:20px}.meta div,.data div{background:#f7f9fc;padding:13px}.data{grid-template-columns:1fr 2fr}.label{font-size:8px;color:#718096;display:block}.value{font-size:12px;font-weight:bold;display:block;margin-top:5px}table{width:100%;border-collapse:collapse;margin-top:18px;font-size:10px}th,td{border:1px solid #dfe6ee;padding:8px;text-align:left}th{background:#edf4fc;color:#173d79}.totales{margin-top:14px;margin-left:auto;width:260px}.totales div{display:flex;justify-content:space-between;padding:6px 0;font-size:11px}.totales .total{font-weight:bold;border-top:2px solid #173d79;margin-top:4px}.application{margin-top:20px;border:1px solid #dfe6ee;border-radius:9px;overflow:hidden}.application h2{font-size:13px;background:#edf4fc;color:#173d79;margin:0;padding:11px 15px}.application>div{display:flex;justify-content:space-between;align-items:center;padding:15px}.application span{display:flex;flex-direction:column;gap:5px}.legend{margin:0 15px 15px;border-left:4px solid #168565;background:#eef8f4;padding:11px;font-size:11px;font-weight:bold}.qr{display:flex;align-items:center;gap:12px}.qrbox{width:84px;height:84px;border:6px solid white;outline:1px solid #172c47;background:repeating-conic-gradient(#172c47 0 25%,#fff 0 50%) 0/12px 12px}.qr p{display:flex;flex-direction:column;max-width:185px;margin:0}.qr small{font-size:8px;line-height:1.4;margin-top:5px}.foot{margin-top:38px;border-top:1px solid #dce3eb;padding-top:15px;color:#718096;font-size:9px}.actions{text-align:center;margin:20px}.actions button{background:#173d79;color:white;border:0;border-radius:7px;padding:10px 18px;font-weight:bold}@media print{.actions{display:none}}</style></head><body><div class="doc"><div class="head"><div class="brand">APYMSA</div><div><small>NOTA DE CRÉDITO</small><h1>Registro de devoluciones y garantías</h1><p>Documento de devolución, bonificación y trazabilidad</p></div></div><div class="meta"><div><span class="label">NOTA DE CRÉDITO</span><span class="value">${d.notaCredito}</span></div><div><span class="label">DOCUMENTO / SERIE</span><span class="value">${d.documento} · ${d.serie}</span></div><div><span class="label">FECHA</span><span class="value">${d.creadaEn}</span></div></div><div class="data"><div><span class="label">CLIENTE</span><span class="value">${d.clienteNombre} (${d.clienteId})</span></div><div><span class="label">SUCURSAL / VENDEDOR</span><span class="value">${d.sucursal} · ${d.vendedorId}</span></div></div><table><thead><tr><th>Código</th><th>Descripción</th><th>Motivo</th><th>Cant.</th><th>Precio</th><th>Descuento</th><th>Importe</th></tr></thead><tbody>${filas}</tbody></table><div class="totales"><div><span>Subtotal</span><span>${formatMoney(d.subtotal)}</span></div><div><span>IVA</span><span>${formatMoney(d.iva)}</span></div><div class="total"><span>Total</span><span>${formatMoney(d.total)}</span></div></div><section class="application"><h2>Aplicación de la nota de crédito</h2><div><span><small class="label">TIPO DE MOVIMIENTO</small><strong>${d.tipoAplicacion}</strong><small>Folio ${d.notaCredito} · Importe ${formatMoney(d.total)}</small></span>${qr}</div><p class="legend">${leyenda}</p></section><div class="foot"><b>Departamento de Garantías · Grupo APYMSA</b><p>Documento generado electrónicamente por Garantías Express.</p></div></div><div class="actions"><button onclick="window.print()">Descargar / imprimir PDF</button></div></body></html>`,
+    `<html><head><title>Nota de crédito ${d.notaCredito}</title><style>@page{size:letter;margin:0}*{box-sizing:border-box}body{font-family:Arial;color:#172338;margin:0}.doc{width:7.2in;min-height:9.7in;padding:.55in .65in}.head{border-bottom:4px solid #173d79;padding-bottom:20px;display:flex;justify-content:space-between;gap:24px}.brand{background:#173d79;color:white;padding:18px 28px;font-size:24px;font-weight:bold}.head small{color:#3268ab;font-weight:bold}.head h1{margin:6px 0;font-size:22px}.meta,.data{display:grid;grid-template-columns:repeat(3,1fr);gap:1px;background:#dfe6ee;margin-top:20px}.meta div,.data div{background:#f7f9fc;padding:13px}.data{grid-template-columns:1fr 2fr}.label{font-size:8px;color:#718096;display:block}.value{font-size:12px;font-weight:bold;display:block;margin-top:5px}table{width:100%;border-collapse:collapse;margin-top:18px;font-size:10px}th,td{border:1px solid #dfe6ee;padding:8px;text-align:left}th{background:#edf4fc;color:#173d79}.totales{margin-top:14px;margin-left:auto;width:260px}.totales div{display:flex;justify-content:space-between;padding:6px 0;font-size:11px}.totales .total{font-weight:bold;border-top:2px solid #173d79;margin-top:4px}.application{margin-top:20px;border:1px solid #dfe6ee;border-radius:9px;overflow:hidden}.application h2{font-size:13px;background:#edf4fc;color:#173d79;margin:0;padding:11px 15px}.application>div{display:flex;justify-content:space-between;align-items:center;padding:15px}.application span{display:flex;flex-direction:column;gap:5px}.legend{margin:0 15px 15px;border-left:4px solid #168565;background:#eef8f4;padding:11px;font-size:11px;font-weight:bold}.qr{display:flex;align-items:center;gap:12px}.qrbox{width:84px;height:84px;border:6px solid white;outline:1px solid #172c47;background:repeating-conic-gradient(#172c47 0 25%,#fff 0 50%) 0/12px 12px}.qr p{display:flex;flex-direction:column;max-width:185px;margin:0}.qr small{font-size:8px;line-height:1.4;margin-top:5px}.foot{margin-top:38px;border-top:1px solid #dce3eb;padding-top:15px;color:#718096;font-size:9px}.actions{text-align:center;margin:20px}.actions button{background:#173d79;color:white;border:0;border-radius:7px;padding:10px 18px;font-weight:bold}@media print{.actions{display:none}}</style></head><body><div class="doc"><div class="head"><div class="brand">APYMSA</div><div><small>NOTA DE CRÉDITO</small><h1>Registro de devoluciones y garantías</h1><p>Documento de devolución, bonificación y trazabilidad</p></div></div><div class="meta"><div><span class="label">NOTA DE CRÉDITO</span><span class="value">${d.notaCredito}</span></div><div><span class="label">DOCUMENTO / SERIE</span><span class="value">${d.documento} · ${d.serie}</span></div><div><span class="label">FECHA</span><span class="value">${d.creadaEn}</span></div></div><div class="data"><div><span class="label">CLIENTE</span><span class="value">${d.clienteNombre} (${d.clienteId})</span></div><div><span class="label">SUCURSAL / VENDEDOR</span><span class="value">${d.sucursal} · ${d.vendedorId}</span></div></div><table><thead><tr><th>Código</th><th>Descripción</th><th>Motivo</th><th>Cant.</th><th>Precio</th><th>Descuento (%)</th><th>Importe</th></tr></thead><tbody>${filas}</tbody></table><div class="totales"><div><span>Subtotal</span><span>${formatMoney(d.subtotal)}</span></div><div><span>IVA</span><span>${formatMoney(d.iva)}</span></div><div class="total"><span>Total</span><span>${formatMoney(d.total)}</span></div></div><section class="application"><h2>Aplicación de la nota de crédito</h2><div><span><small class="label">TIPO DE MOVIMIENTO</small><strong>${d.tipoAplicacion}</strong><small>Folio ${d.notaCredito} · Importe ${formatMoney(d.total)}</small></span>${qr}</div><p class="legend">${leyenda}</p></section><div class="foot"><b>Departamento de Garantías · Grupo APYMSA</b><p>Documento generado electrónicamente por Garantías Express.</p></div></div><div class="actions"><button onclick="window.print()">Descargar / imprimir PDF</button></div></body></html>`,
   );
   w.document.close();
   w.focus();
@@ -13869,8 +13869,32 @@ function MostradorPortal({
     [flow, setFlow] = useState<"garantia" | "devolucion" | null>(null),
     [detalleDevolucion, setDetalleDevolucion] = useState<Devolucion | null>(
       null,
-    );
+    ),
+    [buscarTexto, setBuscarTexto] = useState(""),
+    [fechaDesde, setFechaDesde] = useState(""),
+    [fechaHasta, setFechaHasta] = useState("");
   const misGarantias = casos.filter((c) => c.origenMostrador);
+  const dentroDeFecha = (fechaTexto?: string) => {
+    const fecha = requestDate(fechaTexto);
+    return (
+      (!fechaDesde || !fecha || fecha >= fechaDesde) &&
+      (!fechaHasta || !fecha || fecha <= fechaHasta)
+    );
+  };
+  const devolucionesFiltradas = devoluciones.filter(
+      (d) =>
+        dentroDeFecha(d.creadaEn) &&
+        `${d.folio} ${d.documento} ${d.clienteNombre} ${d.items.map((i) => i.sku).join(" ")}`
+          .toLowerCase()
+          .includes(buscarTexto.toLowerCase()),
+    ),
+    misGarantiasFiltradas = misGarantias.filter(
+      (c) =>
+        dentroDeFecha(c.fechaSolicitud) &&
+        `${c.id} ${c.cliente} ${c.sku} ${c.producto}`
+          .toLowerCase()
+          .includes(buscarTexto.toLowerCase()),
+    );
   return (
     <div className="branch-shell">
       <header>
@@ -13898,20 +13922,56 @@ function MostradorPortal({
           </button>
         </div>
 
+        <div className="mostrador-filtros">
+          <label>
+            <span>Buscar</span>
+            <div>
+              ⌕{" "}
+              <input
+                value={buscarTexto}
+                onChange={(e) => setBuscarTexto(e.target.value)}
+                placeholder="Folio, cliente o código…"
+              />
+            </div>
+          </label>
+          <label>
+            <span>Fecha desde</span>
+            <input
+              type="date"
+              value={fechaDesde}
+              max={fechaHasta || undefined}
+              onChange={(e) => setFechaDesde(e.target.value)}
+            />
+          </label>
+          <label>
+            <span>Fecha hasta</span>
+            <input
+              type="date"
+              value={fechaHasta}
+              min={fechaDesde || undefined}
+              onChange={(e) => setFechaHasta(e.target.value)}
+            />
+          </label>
+        </div>
+
         <div className="panel">
           <div className="cab">
             <div>
               <strong>Solicitudes de devolución</strong>
-              <small>{devoluciones.length} registro(s)</small>
+              <small>{devolucionesFiltradas.length} registro(s)</small>
             </div>
           </div>
           <div className="lista lista-espaciada">
-            {devoluciones.length === 0 && (
+            {devolucionesFiltradas.length === 0 && (
               <div className="fila th">
-                <span>Aún no hay devoluciones capturadas.</span>
+                <span>
+                  {devoluciones.length === 0
+                    ? "Aún no hay devoluciones capturadas."
+                    : "Ninguna devolución coincide con el filtro."}
+                </span>
               </div>
             )}
-            {devoluciones.map((d) => (
+            {devolucionesFiltradas.map((d) => (
               <div key={d.folio} onClick={() => setDetalleDevolucion(d)}>
                 <i>↩</i>
                 <span>
@@ -13951,16 +14011,20 @@ function MostradorPortal({
           <div className="cab">
             <div>
               <strong>Solicitudes de garantía</strong>
-              <small>{misGarantias.length} registro(s)</small>
+              <small>{misGarantiasFiltradas.length} registro(s)</small>
             </div>
           </div>
           <div className="lista lista-espaciada">
-            {misGarantias.length === 0 && (
+            {misGarantiasFiltradas.length === 0 && (
               <div className="fila th">
-                <span>Aún no hay garantías capturadas.</span>
+                <span>
+                  {misGarantias.length === 0
+                    ? "Aún no hay garantías capturadas."
+                    : "Ninguna garantía coincide con el filtro."}
+                </span>
               </div>
             )}
-            {misGarantias.map((c) => {
+            {misGarantiasFiltradas.map((c) => {
               const custodia = custodyOperation(c, []),
                 noProcede = c.resultado === "No procede";
               return (
@@ -14129,7 +14193,7 @@ function DevolucionDetalleModal({
             <span>Descripción</span>
             <span>Cantidad</span>
             <span>Precio</span>
-            <span>Descuento</span>
+            <span>Descuento (%)</span>
             <span>Motivo</span>
             <span>Importe</span>
           </div>
@@ -14141,9 +14205,11 @@ function DevolucionDetalleModal({
                 <span>{i.descripcion}</span>
                 <span>{i.cantidad}</span>
                 <span>{formatMoney(i.precio)}</span>
-                <span>{formatMoney(i.descuento)}</span>
+                <span>{i.descuento}%</span>
                 <span>{i.motivo}</span>
-                <span>{formatMoney(i.cantidad * i.precio - i.descuento)}</span>
+                <span>
+                  {formatMoney(i.cantidad * i.precio * (1 - i.descuento / 100))}
+                </span>
               </div>
             ))}
         </div>
@@ -14287,7 +14353,7 @@ function RecepcionDevolucionModal({
             />
           </label>
           <button type="button" onClick={simularEscaneo}>
-            Simular escaneo
+            ▥ Escanear
           </button>
         </div>
         <footer>
@@ -14382,7 +14448,11 @@ function DevolucionModal({
   };
   const actualizarDescuento = (sku: string, descuento: number) => {
     setLineas((x) =>
-      x.map((l) => (l.sku === sku ? { ...l, descuento } : l)),
+      x.map((l) =>
+        l.sku === sku
+          ? { ...l, descuento: Math.max(0, Math.min(100, descuento || 0)) }
+          : l,
+      ),
     );
   };
   const actualizarMotivo = (sku: string, motivo: string) => {
@@ -14418,12 +14488,14 @@ function DevolucionModal({
     registrarEscaneo(pendiente.sku);
   };
   const subtotal = lineas.reduce(
-      (acc, l) => acc + l.cantidad * l.precio - l.descuento,
+      (acc, l) => acc + l.cantidad * l.precio * (1 - l.descuento / 100),
       0,
     ),
     iva = subtotal * 0.16,
     total = subtotal + iva,
-    listo = lineas.some((l) => l.cantidad > 0);
+    listo =
+      lineas.some((l) => l.cantidad > 0) &&
+      lineas.every((l) => l.cantidad === 0 || l.motivo !== "");
   const mensaje =
     applicationType === "Anticipo"
       ? "Se generará un anticipo en la cuenta del cliente."
@@ -14489,7 +14561,7 @@ function DevolucionModal({
                 />
               </label>
               <button type="button" onClick={simularEscaneoDocumento}>
-                Simular escaneo
+                ▥ Escanear
               </button>
             </div>
             <section>
@@ -14501,25 +14573,25 @@ function DevolucionModal({
                   placeholder="FA-847219"
                 />
               </label>
-              <label>
-                Serie
-                <input
-                  value={serie}
-                  onChange={(e) => setSerie(e.target.value)}
-                  placeholder="A"
-                />
-              </label>
+              <div className="serie-buscar">
+                <label>
+                  Serie
+                  <input
+                    value={serie}
+                    onChange={(e) => setSerie(e.target.value)}
+                    placeholder="A"
+                  />
+                </label>
+                <button
+                  type="button"
+                  className="primario buscar-documento-btn"
+                  onClick={buscar}
+                  disabled={!documento || !serie}
+                >
+                  Buscar
+                </button>
+              </div>
             </section>
-            <div className="check">
-              <button
-                type="button"
-                className="primario buscar-documento-btn"
-                onClick={buscar}
-                disabled={!documento || !serie}
-              >
-                Buscar documento
-              </button>
-            </div>
             {buscado && !factura && (
               <p className="modal-error">
                 No se encontró un documento válido con ese folio y serie.
@@ -14553,7 +14625,7 @@ function DevolucionModal({
                     <span>Disponible</span>
                     <span>Cantidad</span>
                     <span>Precio</span>
-                    <span>Descuento</span>
+                    <span>Descuento (%)</span>
                     <span>Motivo</span>
                     <span>Importe</span>
                   </div>
@@ -14578,6 +14650,7 @@ function DevolucionModal({
                         <input
                           type="number"
                           min={0}
+                          max={100}
                           value={l.descuento}
                           onChange={(e) =>
                             actualizarDescuento(l.sku, Number(e.target.value))
@@ -14591,12 +14664,17 @@ function DevolucionModal({
                             actualizarMotivo(l.sku, e.target.value)
                           }
                         >
+                          <option value="">Selecciona un motivo</option>
                           {motivosDevolucion.map((m) => (
                             <option key={m}>{m}</option>
                           ))}
                         </select>
                       </span>
-                      <span>{formatMoney(l.cantidad * l.precio - l.descuento)}</span>
+                      <span>
+                        {formatMoney(
+                          l.cantidad * l.precio * (1 - l.descuento / 100),
+                        )}
+                      </span>
                     </div>
                   ))}
                   <div className="devolucion-scan">
@@ -14615,7 +14693,7 @@ function DevolucionModal({
                       />
                     </label>
                     <button type="button" onClick={simularEscaneoLinea}>
-                      Simular escaneo
+                      ▥ Escanear
                     </button>
                   </div>
                 </div>
@@ -16194,7 +16272,7 @@ function lineasDeFactura(
         stock[claveStock(f.folio, it.sku)] ?? it.cantidadDisponible,
       cantidad: 0,
       descuento: 0,
-      motivo: motivosDevolucion[0],
+      motivo: "",
     };
   });
 }
