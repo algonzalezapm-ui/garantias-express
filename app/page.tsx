@@ -3586,9 +3586,17 @@ export default function Home() {
     [meses, setMeses] = useState(19),
     [base, setBase] = useState(2650),
     [aprobado, setAprobado] = useState(false),
-    [invoiceStock, setInvoiceStock] = useState<Record<string, number>>(() =>
-      Object.fromEntries(facturas.map((f) => [f.folio, f.cantidad])),
-    ),
+    [invoiceStock, setInvoiceStock] = useState<Record<string, number>>(() => {
+      const s: Record<string, number> = {};
+      for (const f of facturas) {
+        for (const it of f.items || [
+          { sku: f.sku, cantidadDisponible: f.cantidad },
+        ]) {
+          s[claveStock(f.folio, it.sku)] = it.cantidadDisponible;
+        }
+      }
+      return s;
+    }),
     [devoluciones, setDevoluciones] = useState<Devolucion[]>([]);
   const [repairTransfers, setRepairTransfers] = useState<DispositionItem[]>([]),
     [dateFrom, setDateFrom] = useState(""),
@@ -4130,10 +4138,10 @@ export default function Home() {
       fechaSolicitud: "25 ago 2026 · Ahora",
       usuario: "Andrea Martínez",
     };
-    setInvoiceStock((s) => ({
-      ...s,
-      [folio]: Math.max(0, (s[folio] || 0) - 1),
-    }));
+    setInvoiceStock((s) => {
+      const key = claveStock(folio, c.sku);
+      return { ...s, [key]: Math.max(0, (s[key] || 0) - 1) };
+    });
     setCasos((x) => [c, ...x]);
     setSel(c);
     setModal(false);
@@ -4187,10 +4195,10 @@ export default function Home() {
       custodia: "Con el cliente",
       usuario: "Luis Martínez",
     };
-    setInvoiceStock((s) => ({
-      ...s,
-      [folio]: Math.max(0, (s[folio] || 0) - 1),
-    }));
+    setInvoiceStock((s) => {
+      const key = claveStock(folio, c.sku);
+      return { ...s, [key]: Math.max(0, (s[key] || 0) - 1) };
+    });
     setCasos((x) => [c, ...x]);
     imprimirDictamen(c);
     avisar(
@@ -4216,6 +4224,16 @@ export default function Home() {
         usuario: "Luis Martínez",
       };
     setDevoluciones((x) => [d, ...x]);
+    setInvoiceStock((s) => {
+      const next = { ...s };
+      for (const item of d.items) {
+        if (item.cantidad > 0) {
+          const key = claveStock(d.documento, item.sku);
+          next[key] = Math.max(0, (next[key] || 0) - item.cantidad);
+        }
+      }
+      return next;
+    });
     imprimirNotaCreditoDevolucion(d);
     avisar(`Devolución ${d.folio} capturada, nota de crédito ${d.notaCredito}`);
   }
@@ -14049,6 +14067,7 @@ function MostradorPortal({
             onCrearDevolucion(input);
             setFlow(null);
           }}
+          stock={stock}
         />
       )}
       {detalleDevolucion && (
@@ -14291,6 +14310,7 @@ function RecepcionDevolucionModal({
 function DevolucionModal({
   onClose,
   onSubmit,
+  stock,
 }: {
   onClose: () => void;
   onSubmit: (
@@ -14299,6 +14319,7 @@ function DevolucionModal({
       "folio" | "notaCredito" | "estado" | "custodia" | "creadaEn" | "usuario"
     >,
   ) => void;
+  stock: Record<string, number>;
 }) {
   const [documento, setDocumento] = useState(""),
     [serie, setSerie] = useState(""),
@@ -14322,7 +14343,7 @@ function DevolucionModal({
         f.serie.toUpperCase() === serie.trim().toUpperCase(),
     );
     setFactura(encontrada || null);
-    setLineas(encontrada ? lineasDeFactura(encontrada) : []);
+    setLineas(encontrada ? lineasDeFactura(encontrada, stock) : []);
   };
   const buscarPorFolio = (folioCrudo: string) => {
     const folio = folioCrudo.trim().toUpperCase();
@@ -14335,7 +14356,7 @@ function DevolucionModal({
     setSerie(encontrada.serie);
     setBuscado(true);
     setFactura(encontrada);
-    setLineas(lineasDeFactura(encontrada));
+    setLineas(lineasDeFactura(encontrada, stock));
   };
   const escanearDocumento = () => {
     const codigo = scanDocumento.trim();
@@ -16153,7 +16174,13 @@ const facturas: {
     serie: "C",
   },
 ];
-function lineasDeFactura(f: (typeof facturas)[number]): DevolucionLinea[] {
+function claveStock(folio: string, sku: string): string {
+  return `${folio}__${sku}`;
+}
+function lineasDeFactura(
+  f: (typeof facturas)[number],
+  stock: Record<string, number>,
+): DevolucionLinea[] {
   const base = f.items || [{ sku: f.sku, cantidadDisponible: f.cantidad }];
   return base.map((it) => {
     const prod = productos.find((p) => p.sku === it.sku);
@@ -16163,7 +16190,8 @@ function lineasDeFactura(f: (typeof facturas)[number]): DevolucionLinea[] {
       sku: it.sku,
       descripcion: prod?.descripcion || it.sku,
       precio: precioRef,
-      cantidadDisponible: it.cantidadDisponible,
+      cantidadDisponible:
+        stock[claveStock(f.folio, it.sku)] ?? it.cantidadDisponible,
       cantidad: 0,
       descuento: 0,
       motivo: motivosDevolucion[0],
@@ -16240,7 +16268,7 @@ function NewRequestModal({
             (f) =>
               f.clienteId === cliente.id &&
               f.sku === producto.sku &&
-              (stock[f.folio] || 0) > 0,
+              (stock[claveStock(f.folio, f.sku)] || 0) > 0,
           )
         : [],
     listo = Boolean(cliente && producto && factura),
@@ -16420,8 +16448,8 @@ function NewRequestModal({
                     <span>
                       <b>{f.precio}</b>
                       <small>
-                        {stock[f.folio]}{" "}
-                        {stock[f.folio] === 1
+                        {stock[claveStock(f.folio, f.sku)]}{" "}
+                        {stock[claveStock(f.folio, f.sku)] === 1
                           ? "pieza disponible"
                           : "piezas disponibles"}
                       </small>
