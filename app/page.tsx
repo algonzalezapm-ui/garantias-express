@@ -14062,7 +14062,7 @@ function MostradorPortal({
       </main>
 
       {selectorOpen && (
-        <div className="fondo" onMouseDown={() => setSelectorOpen(false)}>
+        <div className="fondo">
           <div
             className="modal tipo-movimiento-modal"
             onMouseDown={(e) => e.stopPropagation()}
@@ -14151,7 +14151,7 @@ function DevolucionDetalleModal({
   onClose: () => void;
 }) {
   return (
-    <div className="fondo" onMouseDown={onClose}>
+    <div className="fondo">
       <div
         className="modal devolucion-modal"
         onMouseDown={(e) => e.stopPropagation()}
@@ -14288,7 +14288,7 @@ function RecepcionDevolucionModal({
     onConfirmar(devolucion.folio);
   };
   return (
-    <div className="fondo" onMouseDown={onClose}>
+    <div className="fondo">
       <div
         className="modal devolucion-modal"
         onMouseDown={(e) => e.stopPropagation()}
@@ -14530,7 +14530,7 @@ function DevolucionModal({
     });
   };
   return (
-    <div className="fondo" onMouseDown={onClose}>
+    <div className="fondo">
       <div
         className="modal devolucion-modal"
         onMouseDown={(e) => e.stopPropagation()}
@@ -16362,7 +16362,7 @@ function NewRequestModal({
               : 65,
     batteryCredit = Math.max(0, batteryBase * (1 - batteryPct / 100));
   return (
-    <div className="fondo" onMouseDown={onClose}>
+    <div className="fondo">
       <form
         className="modal request-modal"
         onSubmit={onSubmit}
