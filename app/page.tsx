@@ -590,7 +590,9 @@ type Caso = {
   origenMostrador?: boolean;
   entregadoAlmacen?: boolean;
   usuario?: string;
+  historial?: HistorialEvento[];
 };
+type HistorialEvento = { fecha: string; usuario: string; evento: string };
 const data: Caso[] = [
   {
     id: "GE-260824-1842",
@@ -3524,6 +3526,7 @@ export default function Home() {
     [vista, setVista] = useState("Solicitudes"),
     [casos, setCasos] = useState(data),
     [sel, setSel] = useState<Caso | null>(data[0]),
+    [detalleGarantia, setDetalleGarantia] = useState<Caso | null>(null),
     [buscar, setBuscar] = useState(""),
     [sucursal, setSucursal] = useState("Todas"),
     [estadoSolicitud, setEstadoSolicitud] = useState("Todos"),
@@ -3597,7 +3600,8 @@ export default function Home() {
       }
       return s;
     }),
-    [devoluciones, setDevoluciones] = useState<Devolucion[]>([]);
+    [devoluciones, setDevoluciones] = useState<Devolucion[]>([]),
+    [consumoStock, setConsumoStock] = useState<ConsumoStock[]>([]);
   const [repairTransfers, setRepairTransfers] = useState<DispositionItem[]>([]),
     [dateFrom, setDateFrom] = useState(""),
     [dateTo, setDateTo] = useState("");
@@ -4137,11 +4141,22 @@ export default function Home() {
       factura: folio,
       fechaSolicitud: "25 ago 2026 · Ahora",
       usuario: "Andrea Martínez",
+      historial: [
+        {
+          fecha: "25 ago 2026 · Ahora",
+          usuario: "Andrea Martínez",
+          evento: `Solicitud creada y diagnosticada: ${resultado}`,
+        },
+      ],
     };
     setInvoiceStock((s) => {
       const key = claveStock(folio, c.sku);
       return { ...s, [key]: Math.max(0, (s[key] || 0) - 1) };
     });
+    setConsumoStock((x) => [
+      ...x,
+      { folio, sku: c.sku, tipo: "Garantía", cantidad: 1 },
+    ]);
     setCasos((x) => [c, ...x]);
     setSel(c);
     setModal(false);
@@ -4194,11 +4209,22 @@ export default function Home() {
       origenMostrador: true,
       custodia: "Con el cliente",
       usuario: "Luis Martínez",
+      historial: [
+        {
+          fecha: "1 sep 2026 · Ahora",
+          usuario: "Luis Martínez",
+          evento: `Solicitud creada en Mostrador y diagnosticada: ${resultado}`,
+        },
+      ],
     };
     setInvoiceStock((s) => {
       const key = claveStock(folio, c.sku);
       return { ...s, [key]: Math.max(0, (s[key] || 0) - 1) };
     });
+    setConsumoStock((x) => [
+      ...x,
+      { folio, sku: c.sku, tipo: "Garantía", cantidad: 1 },
+    ]);
     setCasos((x) => [c, ...x]);
     imprimirDictamen(c);
     avisar(
@@ -4222,6 +4248,13 @@ export default function Home() {
         custodia: "En mostrador",
         creadaEn: "1 sep 2026 · Ahora",
         usuario: "Luis Martínez",
+        historial: [
+          {
+            fecha: "1 sep 2026 · Ahora",
+            usuario: "Luis Martínez",
+            evento: "Devolución capturada en Mostrador",
+          },
+        ],
       };
     setDevoluciones((x) => [d, ...x]);
     setInvoiceStock((s) => {
@@ -4234,6 +4267,17 @@ export default function Home() {
       }
       return next;
     });
+    setConsumoStock((x) => [
+      ...x,
+      ...d.items
+        .filter((item) => item.cantidad > 0)
+        .map((item) => ({
+          folio: d.documento,
+          sku: item.sku,
+          tipo: "Devolución" as const,
+          cantidad: item.cantidad,
+        })),
+    ]);
     imprimirNotaCreditoDevolucion(d);
     avisar(`Devolución ${d.folio} capturada, nota de crédito ${d.notaCredito}`);
   }
@@ -4243,7 +4287,19 @@ export default function Home() {
     setCasos((x) =>
       x.map((c) =>
         c.id === id
-          ? { ...c, entregadoAlmacen: true, custodia: "En sucursal" }
+          ? {
+              ...c,
+              entregadoAlmacen: true,
+              custodia: "En sucursal",
+              historial: [
+                ...(c.historial || []),
+                {
+                  fecha: "4 sep 2026 · Ahora",
+                  usuario: "Luis Martínez",
+                  evento: "Entregada a Garantías Sucursal",
+                },
+              ],
+            }
           : c,
       ),
     );
@@ -4256,7 +4312,20 @@ export default function Home() {
       return;
     setDevoluciones((x) =>
       x.map((d) =>
-        d.folio === folio ? { ...d, estado: "Entregada a almacén" } : d,
+        d.folio === folio
+          ? {
+              ...d,
+              estado: "Entregada a almacén",
+              historial: [
+                ...d.historial,
+                {
+                  fecha: "4 sep 2026 · Ahora",
+                  usuario: "Luis Martínez",
+                  evento: "Entregada a Garantías Sucursal",
+                },
+              ],
+            }
+          : d,
       ),
     );
     avisar(`Devolución ${folio} entregada a Garantías Sucursal`);
@@ -4269,7 +4338,19 @@ export default function Home() {
     setDevoluciones((x) =>
       x.map((d) =>
         d.folio === folio
-          ? { ...d, estado: "Recibida en almacén", custodia: "En almacén" }
+          ? {
+              ...d,
+              estado: "Recibida en almacén",
+              custodia: "En almacén",
+              historial: [
+                ...d.historial,
+                {
+                  fecha: "4 sep 2026 · Ahora",
+                  usuario: "Luis Martínez",
+                  evento: "Recibida en el almacén de la sucursal",
+                },
+              ],
+            }
           : d,
       ),
     );
@@ -4341,6 +4422,7 @@ export default function Home() {
           casos={casos}
           devoluciones={devoluciones}
           stock={invoiceStock}
+          consumoStock={consumoStock}
           onCrearGarantia={crearDesdeMostrador}
           onCrearDevolucion={crearDevolucion}
           onEntregarGarantia={entregarGarantiaAAlmacen}
@@ -4576,7 +4658,10 @@ export default function Home() {
                 <Tabla
                   items={filtrados}
                   sel={sel}
-                  elegir={setSel}
+                  elegir={(c) => {
+                    setSel(c);
+                    setDetalleGarantia(c);
+                  }}
                   confirmar={setBotFlow}
                   receivedBoxes={receivedBoxes}
                   incidentFolios={receptionIncidentFolios}
@@ -4674,8 +4759,15 @@ export default function Home() {
           onClose={() => setModal(false)}
           onSubmit={crear}
           stock={invoiceStock}
+          consumoStock={consumoStock}
         />
       )}{" "}
+      {detalleGarantia && (
+        <GarantiaDetalleModal
+          caso={detalleGarantia}
+          onClose={() => setDetalleGarantia(null)}
+        />
+      )}
       {receptionModal && (
         <div
           className="reception-modal request-card-modal"
@@ -13623,9 +13715,9 @@ function SucursalPortal({
   devoluciones: Devolucion[];
   onRecibirDevolucion: (folio: string) => void;
 }) {
-  const [tab, setTab] = useState<"garantias" | "incidencias" | "devoluciones">(
-      "garantias",
-    ),
+  const [tab, setTab] = useState<
+      "garantias" | "incidencias" | "devoluciones" | "indicadores"
+    >("garantias"),
     [collapsed, setCollapsed] = useState(false),
     [mensaje, setMensaje] = useState(""),
     [recepcion, setRecepcion] = useState<Devolucion | null>(null),
@@ -13660,6 +13752,13 @@ function SucursalPortal({
         <nav>
           <small>GARANTÍAS SUCURSAL</small>
           <button
+            className={tab === "indicadores" ? "active" : ""}
+            onClick={() => setTab("indicadores")}
+          >
+            <i>▦</i>
+            <span>Indicadores</span>
+          </button>
+          <button
             className={tab === "garantias" ? "active" : ""}
             onClick={() => setTab("garantias")}
           >
@@ -13691,6 +13790,13 @@ function SucursalPortal({
         </button>
       </aside>
       <section className="branch-app-content">
+        {tab === "indicadores" && (
+          <SucursalDashboard
+            casos={casos}
+            devoluciones={devoluciones}
+            onBack={onBack}
+          />
+        )}
         {tab === "garantias" && (
           <SucursalTracePortal casos={casos} onBack={onBack} />
         )}
@@ -13841,10 +13947,124 @@ function SucursalPortal({
   );
 }
 
+function SucursalDashboard({
+  casos,
+  devoluciones,
+  onBack,
+}: {
+  casos: Caso[];
+  devoluciones: Devolucion[];
+  onBack: () => void;
+}) {
+  const garantiasMostrador = casos.filter((c) => c.origenMostrador),
+    garantiasEntregadas = garantiasMostrador.filter((c) => c.entregadoAlmacen),
+    garantiasProcede = garantiasEntregadas.filter(
+      (c) => c.resultado === "Procede",
+    ).length,
+    garantiasNoProcede = garantiasEntregadas.filter(
+      (c) => c.resultado === "No procede",
+    ).length,
+    devolucionesPendientes = devoluciones.filter(
+      (d) => d.estado === "Capturada",
+    ),
+    devolucionesRecibidas = devoluciones.filter(
+      (d) => d.estado === "Recibida en almacén",
+    ),
+    montoRecibido = devolucionesRecibidas.reduce((a, d) => a + d.total, 0);
+  const conteoPorValor = <T extends string>(valores: T[]) => {
+    const conteo = new Map<T, number>();
+    for (const v of valores) conteo.set(v, (conteo.get(v) || 0) + 1);
+    let top: T | null = null,
+      max = 0;
+    for (const [v, n] of conteo) {
+      if (n > max) {
+        max = n;
+        top = v;
+      }
+    }
+    return top;
+  };
+  const motivoFrecuente = conteoPorValor(
+      devoluciones.flatMap((d) =>
+        d.items.filter((i) => i.cantidad > 0).map((i) => i.motivo),
+      ),
+    ),
+    aplicacionFrecuente = conteoPorValor(
+      devoluciones.map((d) => d.tipoAplicacion),
+    );
+  return (
+    <div className="branch-shell">
+      <header>
+        <div className="portal-brand">
+          <b>GX</b>
+          <span>
+            <strong>Garantías Sucursal</strong>
+            <small>Zapopan Norte · Sucursal 014</small>
+          </span>
+        </div>
+        <div className="branch-actions">
+          <button onClick={onBack}>⇄ Cambiar módulo</button>
+          <b>LM</b>
+        </div>
+      </header>
+      <main>
+        <div className="titulo branch-title">
+          <div>
+            <small>INDICADORES · SUCURSAL 014</small>
+            <h1>Indicadores</h1>
+            <p>
+              Resumen operativo de garantías de Mostrador y devoluciones de la
+              sucursal.
+            </p>
+          </div>
+        </div>
+        <section className="exec-kpis">
+          <ExecKpi
+            area="DEVOLUCIONES"
+            label="Pendientes en Mostrador"
+            value={String(devolucionesPendientes.length)}
+            delta="Aún no entregadas al almacén"
+            tone="orange"
+          />
+          <ExecKpi
+            area="DEVOLUCIONES"
+            label="Recibidas en almacén"
+            value={String(devolucionesRecibidas.length)}
+            delta={`${formatMoney(montoRecibido)} en nota de crédito`}
+            tone="green"
+          />
+          <ExecKpi
+            area="GARANTÍAS"
+            label="Entregadas desde Mostrador"
+            value={String(garantiasEntregadas.length)}
+            delta={`${garantiasProcede} procede · ${garantiasNoProcede} no procede`}
+            tone="blue"
+          />
+          <ExecKpi
+            area="DEVOLUCIONES"
+            label="Motivo más frecuente"
+            value={motivoFrecuente || "Sin datos"}
+            delta="Basado en las devoluciones capturadas"
+            tone="purple"
+          />
+          <ExecKpi
+            area="NOTA DE CRÉDITO"
+            label="Aplicación más usada"
+            value={aplicacionFrecuente || "Sin datos"}
+            delta="Considera garantías y devoluciones de Mostrador"
+            tone="yellow"
+          />
+        </section>
+      </main>
+    </div>
+  );
+}
+
 function MostradorPortal({
   casos,
   devoluciones,
   stock,
+  consumoStock,
   onCrearGarantia,
   onCrearDevolucion,
   onEntregarGarantia,
@@ -13854,6 +14074,7 @@ function MostradorPortal({
   casos: Caso[];
   devoluciones: Devolucion[];
   stock: Record<string, number>;
+  consumoStock: ConsumoStock[];
   onCrearGarantia: (e: FormEvent<HTMLFormElement>) => void;
   onCrearDevolucion: (
     input: Omit<
@@ -13870,6 +14091,7 @@ function MostradorPortal({
     [detalleDevolucion, setDetalleDevolucion] = useState<Devolucion | null>(
       null,
     ),
+    [detalleGarantia, setDetalleGarantia] = useState<Caso | null>(null),
     [buscarTexto, setBuscarTexto] = useState(""),
     [fechaDesde, setFechaDesde] = useState(""),
     [fechaHasta, setFechaHasta] = useState("");
@@ -14028,7 +14250,7 @@ function MostradorPortal({
               const custodia = custodyOperation(c, []),
                 noProcede = c.resultado === "No procede";
               return (
-                <div key={c.id}>
+                <div key={c.id} onClick={() => setDetalleGarantia(c)}>
                   <i>◎</i>
                   <span>
                     <strong>
@@ -14047,12 +14269,17 @@ function MostradorPortal({
                   {noProcede ? null : !c.entregadoAlmacen ? (
                     <button
                       className="primario"
-                      onClick={() => onEntregarGarantia(c.id)}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onEntregarGarantia(c.id);
+                      }}
                     >
                       Entregar a almacén
                     </button>
                   ) : (
-                    <button disabled>Entregada</button>
+                    <button disabled onClick={(e) => e.stopPropagation()}>
+                      Entregada
+                    </button>
                   )}
                 </div>
               );
@@ -14122,6 +14349,7 @@ function MostradorPortal({
             setFlow(null);
           }}
           stock={stock}
+          consumoStock={consumoStock}
         />
       )}
       {flow === "devolucion" && (
@@ -14132,6 +14360,7 @@ function MostradorPortal({
             setFlow(null);
           }}
           stock={stock}
+          consumoStock={consumoStock}
         />
       )}
       {detalleDevolucion && (
@@ -14140,6 +14369,30 @@ function MostradorPortal({
           onClose={() => setDetalleDevolucion(null)}
         />
       )}
+      {detalleGarantia && (
+        <GarantiaDetalleModal
+          caso={detalleGarantia}
+          onClose={() => setDetalleGarantia(null)}
+        />
+      )}
+    </div>
+  );
+}
+function HistorialTimeline({ eventos }: { eventos: HistorialEvento[] }) {
+  return (
+    <div className="historial-timeline">
+      <h3>Historial</h3>
+      {eventos.map((h, i) => (
+        <div className="historial-evento" key={i}>
+          <i />
+          <span>
+            <strong>{h.evento}</strong>
+            <small>
+              {h.fecha} · {h.usuario}
+            </small>
+          </span>
+        </div>
+      ))}
     </div>
   );
 }
@@ -14224,6 +14477,68 @@ function DevolucionDetalleModal({
             Total <b>{formatMoney(devolucion.total)}</b>
           </span>
         </div>
+        <HistorialTimeline eventos={devolucion.historial} />
+        <footer>
+          <button type="button" onClick={onClose}>
+            Cerrar
+          </button>
+        </footer>
+      </div>
+    </div>
+  );
+}
+function GarantiaDetalleModal({
+  caso,
+  onClose,
+}: {
+  caso: Caso;
+  onClose: () => void;
+}) {
+  const custodia = custodyOperation(caso, []);
+  return (
+    <div className="fondo">
+      <div
+        className="modal devolucion-modal"
+        onMouseDown={(e) => e.stopPropagation()}
+      >
+        <div>
+          <small>GARANTÍA EXPRESS</small>
+          <button type="button" onClick={onClose}>
+            ×
+          </button>
+          <h2>Detalle de la solicitud</h2>
+          <p>
+            {caso.id} · {caso.fechaSolicitud || "Fecha pendiente"} ·{" "}
+            {caso.usuario || "—"}
+          </p>
+        </div>
+        <section>
+          <label>
+            Cliente
+            <input value={caso.cliente} disabled />
+          </label>
+          <label>
+            Sucursal
+            <input value={caso.sucursal} disabled />
+          </label>
+          <label>
+            Producto
+            <input value={`${caso.sku} · ${caso.producto}`} disabled />
+          </label>
+          <label>
+            Estado de custodia
+            <input value={custodia.holder} disabled />
+          </label>
+          <label>
+            Resultado
+            <input value={caso.resultado || "En diagnóstico"} disabled />
+          </label>
+          <label>
+            Nota de crédito
+            <input value={caso.notaCredito || "—"} disabled />
+          </label>
+        </section>
+        <HistorialTimeline eventos={caso.historial || []} />
         <footer>
           <button type="button" onClick={onClose}>
             Cerrar
@@ -14377,6 +14692,7 @@ function DevolucionModal({
   onClose,
   onSubmit,
   stock,
+  consumoStock,
 }: {
   onClose: () => void;
   onSubmit: (
@@ -14386,6 +14702,7 @@ function DevolucionModal({
     >,
   ) => void;
   stock: Record<string, number>;
+  consumoStock: ConsumoStock[];
 }) {
   const [documento, setDocumento] = useState(""),
     [serie, setSerie] = useState(""),
@@ -14633,7 +14950,22 @@ function DevolucionModal({
                     <div className="devolucion-linea" key={l.sku}>
                       <span>{l.sku}</span>
                       <span>{l.descripcion}</span>
-                      <span>{l.cantidadDisponible - l.cantidad}</span>
+                      <span>
+                        {l.cantidadDisponible - l.cantidad}
+                        {(() => {
+                          const d = desgloseStock(
+                            factura.folio,
+                            l.sku,
+                            consumoStock,
+                          );
+                          return (
+                            <small className="stock-desglose">
+                              Original {d.original} · Garantías -{d.garantias}{" "}
+                              · Devoluciones -{d.devoluciones}
+                            </small>
+                          );
+                        })()}
+                      </span>
                       <span>
                         <input
                           type="number"
@@ -16155,6 +16487,13 @@ type Devolucion = {
   custodia: "En mostrador" | "En almacén";
   creadaEn: string;
   usuario: string;
+  historial: HistorialEvento[];
+};
+type ConsumoStock = {
+  folio: string;
+  sku: string;
+  tipo: "Garantía" | "Devolución";
+  cantidad: number;
 };
 const productos = [
   { sku: "BO-AL394", descripcion: "ALTERNADOR BOSCH 12V 90A", bateria: false },
@@ -16255,6 +16594,21 @@ const facturas: {
 function claveStock(folio: string, sku: string): string {
   return `${folio}__${sku}`;
 }
+function desgloseStock(folio: string, sku: string, consumo: ConsumoStock[]) {
+  const factura = facturas.find((f) => f.folio === folio),
+    original =
+      factura?.items?.find((it) => it.sku === sku)?.cantidadDisponible ??
+      (factura && factura.sku === sku ? factura.cantidad : 0),
+    sumaPorTipo = (tipo: ConsumoStock["tipo"]) =>
+      consumo
+        .filter((x) => x.folio === folio && x.sku === sku && x.tipo === tipo)
+        .reduce((a, x) => a + x.cantidad, 0);
+  return {
+    original,
+    garantias: sumaPorTipo("Garantía"),
+    devoluciones: sumaPorTipo("Devolución"),
+  };
+}
 function lineasDeFactura(
   f: (typeof facturas)[number],
   stock: Record<string, number>,
@@ -16284,10 +16638,12 @@ function NewRequestModal({
   onClose,
   onSubmit,
   stock,
+  consumoStock,
 }: {
   onClose: () => void;
   onSubmit: (e: FormEvent<HTMLFormElement>) => void;
   stock: Record<string, number>;
+  consumoStock: ConsumoStock[];
 }) {
   const [clienteTexto, setClienteTexto] = useState(""),
     [cliente, setCliente] = useState<(typeof clientes)[number] | null>(null),
@@ -16531,6 +16887,15 @@ function NewRequestModal({
                           ? "pieza disponible"
                           : "piezas disponibles"}
                       </small>
+                      {(() => {
+                        const d = desgloseStock(f.folio, f.sku, consumoStock);
+                        return (
+                          <small className="stock-desglose">
+                            Original {d.original} · Garantías -{d.garantias} ·
+                            Devoluciones -{d.devoluciones}
+                          </small>
+                        );
+                      })()}
                     </span>
                     <em>{factura === f.folio ? "✓" : ""}</em>
                   </label>
