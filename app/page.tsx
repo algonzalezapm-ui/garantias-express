@@ -14958,22 +14958,7 @@ function DevolucionModal({
                   </div>
                   {lineas.map((l) => (
                     <div className="devolucion-linea" key={l.sku}>
-                      <span>
-                        {l.sku}
-                        {(() => {
-                          const d = desgloseStock(
-                            factura.folio,
-                            l.sku,
-                            consumoStock,
-                          );
-                          return (
-                            <small className="stock-desglose">
-                              Garantías: {d.garantias} / Devoluciones:{" "}
-                              {d.devoluciones}
-                            </small>
-                          );
-                        })()}
-                      </span>
+                      <span>{l.sku}</span>
                       <span>{l.descripcion}</span>
                       <span>{l.cantidadDisponible - l.cantidad}</span>
                       <span>
@@ -15017,6 +15002,19 @@ function DevolucionModal({
                           l.cantidad * l.precio * (1 - l.descuento / 100),
                         )}
                       </span>
+                      {(() => {
+                        const d = desgloseStock(
+                          factura.folio,
+                          l.sku,
+                          consumoStock,
+                        );
+                        return (
+                          <small className="stock-desglose-fila">
+                            Garantías: {d.garantias} / Devoluciones:{" "}
+                            {d.devoluciones}
+                          </small>
+                        );
+                      })()}
                     </div>
                   ))}
                   <div className="devolucion-scan">
