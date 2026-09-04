@@ -142,3 +142,4 @@
 
 .historial-timeline{margin-top:14px;padding-top:12px;border-top:1px solid var(--line)}.historial-timeline h3{margin:0 0 8px;font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em}.historial-evento{display:flex;align-items:flex-start;gap:8px;padding:6px 0}.historial-evento+.historial-evento{border-top:1px dashed var(--line)}.historial-evento>i{width:7px;height:7px;margin-top:3px;border-radius:50%;background:var(--blue);flex:0 0 auto;font-style:normal}.historial-evento>span{display:flex;flex-direction:column;gap:2px}.historial-evento>span>strong{font-size:8px}.historial-evento>span>small{font-size:7px;color:var(--muted)}
 .stock-desglose{display:block;margin-top:2px;font-size:6px;color:var(--muted)}
+.stock-desglose-fila{grid-column:1/-1;display:block;margin-top:-2px;padding-top:4px;border-top:1px dashed var(--line);font-size:6px;color:var(--muted);white-space:nowrap}
