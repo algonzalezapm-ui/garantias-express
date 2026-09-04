@@ -13958,6 +13958,9 @@ function SucursalDashboard({
 }) {
   const garantiasMostrador = casos.filter((c) => c.origenMostrador),
     garantiasEntregadas = garantiasMostrador.filter((c) => c.entregadoAlmacen),
+    garantiasPendientes = garantiasMostrador.filter(
+      (c) => !c.entregadoAlmacen,
+    ),
     garantiasProcede = garantiasEntregadas.filter(
       (c) => c.resultado === "Procede",
     ).length,
@@ -14032,6 +14035,13 @@ function SucursalDashboard({
             value={String(devolucionesRecibidas.length)}
             delta={`${formatMoney(montoRecibido)} en nota de crédito`}
             tone="green"
+          />
+          <ExecKpi
+            area="GARANTÍAS"
+            label="Pendientes en mostrador"
+            value={String(garantiasPendientes.length)}
+            delta="Aún no entregadas al almacén"
+            tone="orange"
           />
           <ExecKpi
             area="GARANTÍAS"
@@ -14948,10 +14958,8 @@ function DevolucionModal({
                   </div>
                   {lineas.map((l) => (
                     <div className="devolucion-linea" key={l.sku}>
-                      <span>{l.sku}</span>
-                      <span>{l.descripcion}</span>
                       <span>
-                        {l.cantidadDisponible - l.cantidad}
+                        {l.sku}
                         {(() => {
                           const d = desgloseStock(
                             factura.folio,
@@ -14960,12 +14968,14 @@ function DevolucionModal({
                           );
                           return (
                             <small className="stock-desglose">
-                              Original {d.original} · Garantías -{d.garantias}{" "}
-                              · Devoluciones -{d.devoluciones}
+                              Garantías: {d.garantias} / Devoluciones:{" "}
+                              {d.devoluciones}
                             </small>
                           );
                         })()}
                       </span>
+                      <span>{l.descripcion}</span>
+                      <span>{l.cantidadDisponible - l.cantidad}</span>
                       <span>
                         <input
                           type="number"
@@ -16878,6 +16888,15 @@ function NewRequestModal({
                       <small>
                         {f.fecha} · {f.sucursal}
                       </small>
+                      {(() => {
+                        const d = desgloseStock(f.folio, f.sku, consumoStock);
+                        return (
+                          <small className="stock-desglose">
+                            Garantías: {d.garantias} / Devoluciones:{" "}
+                            {d.devoluciones}
+                          </small>
+                        );
+                      })()}
                     </span>
                     <span>
                       <b>{f.precio}</b>
@@ -16887,15 +16906,6 @@ function NewRequestModal({
                           ? "pieza disponible"
                           : "piezas disponibles"}
                       </small>
-                      {(() => {
-                        const d = desgloseStock(f.folio, f.sku, consumoStock);
-                        return (
-                          <small className="stock-desglose">
-                            Original {d.original} · Garantías -{d.garantias} ·
-                            Devoluciones -{d.devoluciones}
-                          </small>
-                        );
-                      })()}
                     </span>
                     <em>{factura === f.folio ? "✓" : ""}</em>
                   </label>
