@@ -14818,6 +14818,10 @@ function DevolucionModal({
       (acc, l) => acc + l.cantidad * l.precio * (1 - l.descuento / 100),
       0,
     ),
+    descuentoImporte = lineas.reduce(
+      (acc, l) => acc + l.cantidad * l.precio * (l.descuento / 100),
+      0,
+    ),
     iva = subtotal * 0.16,
     total = subtotal + iva,
     listo =
@@ -15038,6 +15042,9 @@ function DevolucionModal({
                   </div>
                 </div>
                 <div className="devolucion-totales">
+                  <span>
+                    Descuento <b>{formatMoney(descuentoImporte)}</b>
+                  </span>
                   <span>
                     Subtotal <b>{formatMoney(subtotal)}</b>
                   </span>
