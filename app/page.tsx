@@ -6256,6 +6256,116 @@ function custodyOperation(c: Caso, receivedBoxes: string[]) {
     tone: "ok",
   };
 }
+const CUSTODY_STEPS = [
+  "Con el cliente",
+  "Con el asesor",
+  "En sucursal",
+  "Con Paquetería",
+  "Garantías Central",
+];
+function custodyIcon(holder: string) {
+  switch (holder) {
+    case "Con el cliente":
+      return (
+        <>
+          <circle cx="12" cy="8" r="3.2" />
+          <path d="M5 20c0-3.5 3-6 7-6s7 2.5 7 6" />
+        </>
+      );
+    case "Con el asesor":
+      return (
+        <>
+          <circle cx="9" cy="8" r="3" />
+          <path d="M3 20c0-3.3 2.7-5.7 6-5.7" />
+          <path d="M14 16.5l2 2 4-4.5" />
+        </>
+      );
+    case "En sucursal":
+      return (
+        <>
+          <path d="M3 21V10l9-6 9 6v11" />
+          <path d="M9 21v-6h6v6" />
+        </>
+      );
+    case "Con Paquetería":
+      return (
+        <>
+          <rect x="1" y="7" width="13" height="9" rx="1" />
+          <path d="M14 10h4l3 3v3h-7z" />
+          <circle cx="6" cy="18" r="1.6" />
+          <circle cx="17" cy="18" r="1.6" />
+        </>
+      );
+    case "Garantías Central":
+      return (
+        <>
+          <path d="M3 11l9-7 9 7" />
+          <path d="M5 10v9a1 1 0 0 0 1 1h4v-6h4v6h4a1 1 0 0 0 1-1v-9" />
+        </>
+      );
+    case "En caja de Garantías":
+      return (
+        <>
+          <path d="M3 7l9-4 9 4-9 4-9-4z" />
+          <path d="M3 7v10l9 4 9-4V7" />
+          <path d="M12 11v10" />
+        </>
+      );
+    default:
+      return (
+        <>
+          <circle cx="12" cy="12" r="9" />
+          <path d="M8 12.5l2.5 2.5L16 9" />
+        </>
+      );
+  }
+}
+function CustodyProgress({ holder }: { holder: string }) {
+  const stepIndex = CUSTODY_STEPS.indexOf(holder);
+  const icon = (
+    <svg
+      width="11"
+      height="11"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.9"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      {custodyIcon(holder)}
+    </svg>
+  );
+  if (stepIndex === -1) {
+    return (
+      <span className="custody-edge">
+        <i className="custody-icon">{icon}</i>
+        <b>{holder}</b>
+      </span>
+    );
+  }
+  const progressPercent = (stepIndex / (CUSTODY_STEPS.length - 1)) * 100;
+  return (
+    <span className="custody-progress">
+      <span className="custody-track">
+        <span
+          className="custody-track-fill"
+          style={{ width: `${progressPercent}%` }}
+        />
+        {CUSTODY_STEPS.map((step, i) => (
+          <span
+            key={step}
+            className={`custody-dot ${i < stepIndex ? "done" : i === stepIndex ? "current" : ""}`}
+          />
+        ))}
+      </span>
+      <span className="custody-current-label">
+        <i className="custody-icon">{icon}</i>
+        <b>{holder}</b>
+      </span>
+    </span>
+  );
+}
 function Tabla({
   items,
   sel,
@@ -6282,7 +6392,6 @@ function Tabla({
         <span>Cliente y producto</span>
         <span>Estado solicitud</span>
         <span>Estado de custodia</span>
-        <span>Siguiente acción</span>
         <span>Cumplimiento</span>
         <span>Número de caja</span>
         <span>Nota de crédito</span>
@@ -6325,29 +6434,7 @@ function Tabla({
             <span
               className={`custody-cell ${operation.holder === "Con Paquetería" ? "custody-alert" : operation.holder === "Garantías Central" ? "custody-central" : operation.holder === "Con el cliente" ? "custody-client" : operation.holder === "En sucursal" || operation.holder === "Con el asesor" ? "custody-branch" : ""}`}
             >
-              <i>⌖</i>
-              <span className="custody-flow">
-                <b>{operation.holder}</b>
-                <em className="custody-next">
-                  <svg
-                    width="10"
-                    height="10"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2.4"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  >
-                    <path d="M5 12h14M13 6l6 6-6 6" />
-                  </svg>
-                  {operation.next}
-                </em>
-              </span>
-            </span>
-            <span className="next-action-cell">
-              <b>{operation.next}</b>
-              <small>Responsable según custodia</small>
+              <CustodyProgress holder={operation.holder} />
             </span>
             <span>
               <em className={`sla-status ${operation.tone}`}>
