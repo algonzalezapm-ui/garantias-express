@@ -14471,21 +14471,83 @@ function MostradorPortal({
     </div>
   );
 }
+function historialEventoTipo(
+  evento: string,
+): "creacion" | "entrega" | "recepcion" | "otro" {
+  if (
+    evento.startsWith("Solicitud creada") ||
+    evento.startsWith("Devolución capturada")
+  )
+    return "creacion";
+  if (evento.startsWith("Entregada")) return "entrega";
+  if (evento.startsWith("Recibida")) return "recepcion";
+  return "otro";
+}
 function HistorialTimeline({ eventos }: { eventos: HistorialEvento[] }) {
   return (
     <div className="historial-timeline">
       <h3>Historial</h3>
-      {eventos.map((h, i) => (
-        <div className="historial-evento" key={i}>
-          <i />
-          <span>
-            <strong>{h.evento}</strong>
-            <small>
-              {h.fecha} · {h.usuario}
-            </small>
-          </span>
-        </div>
-      ))}
+      <div className="historial-lista">
+        {eventos.map((h, i) => {
+          const tipo = historialEventoTipo(h.evento),
+            resultado = h.evento.endsWith(": Procede")
+              ? "Procede"
+              : h.evento.endsWith(": No procede")
+                ? "No procede"
+                : null;
+          return (
+            <div className={`historial-evento tipo-${tipo}`} key={i}>
+              <span className="historial-icono">
+                <svg
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.8"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  {tipo === "creacion" && (
+                    <>
+                      <path d="M6 3h8l4 4v14H6z" />
+                      <path d="M14 3v4h4" />
+                      <path d="M9 13h6M9 16.5h4" />
+                    </>
+                  )}
+                  {tipo === "entrega" && (
+                    <>
+                      <circle cx="12" cy="12" r="9" />
+                      <path d="M9 12h6M12 9l3 3-3 3" />
+                    </>
+                  )}
+                  {tipo === "recepcion" && (
+                    <>
+                      <path d="M4 12h4l2 3h4l2-3h4" />
+                      <path d="M4 12V6a1 1 0 0 1 1-1h14a1 1 0 0 1 1 1v6" />
+                      <path d="M4 12v6a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-6" />
+                    </>
+                  )}
+                  {tipo === "otro" && <circle cx="12" cy="12" r="4" />}
+                </svg>
+              </span>
+              <span className="historial-detalle">
+                <strong>{h.evento}</strong>
+                {resultado && (
+                  <em
+                    className={`historial-resultado ${resultado === "Procede" ? "ok" : "no"}`}
+                  >
+                    {resultado}
+                  </em>
+                )}
+                <small>
+                  {h.fecha} · {h.usuario}
+                </small>
+              </span>
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }
