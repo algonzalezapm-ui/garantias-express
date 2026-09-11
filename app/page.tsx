@@ -6347,7 +6347,7 @@ function CustodyProgress({ holder }: { holder: string }) {
   const progressPercent = (stepIndex / (CUSTODY_STEPS.length - 1)) * 100;
   return (
     <span className="custody-progress">
-      <span className="custody-track">
+      <span className="custody-mini-track">
         <span
           className="custody-track-fill"
           style={{ width: `${progressPercent}%` }}
@@ -14768,10 +14768,6 @@ function GarantiaDetalleModal({
             <input value={`${caso.sku} · ${caso.producto}`} disabled />
           </label>
           <label>
-            Estado de custodia
-            <input value={custodia.holder} disabled />
-          </label>
-          <label>
             Resultado
             <input value={caso.resultado || "En diagnóstico"} disabled />
           </label>
@@ -14780,6 +14776,10 @@ function GarantiaDetalleModal({
             <input value={caso.notaCredito || "—"} disabled />
           </label>
         </section>
+        <div className="custody-card">
+          <small>Custodia de la pieza</small>
+          <CustodyProgress holder={custodia.holder} />
+        </div>
         <HistorialTimeline eventos={caso.historial || []} />
         <footer>
           <button type="button" onClick={onClose}>
