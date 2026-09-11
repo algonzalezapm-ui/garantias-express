@@ -13600,52 +13600,97 @@ function PortalSelector({
 }) {
   const modules = [
     {
-      i: "⌂",
+      icon: (
+        <>
+          <path d="M3 11l9-7 9 7" />
+          <path d="M5 10v9a1 1 0 0 0 1 1h4v-6h4v6h4a1 1 0 0 0 1-1v-9" />
+        </>
+      ),
       n: "Garantías Central",
       tag: "OPERACIÓN CORPORATIVA",
       d: "Solicitudes, diagnóstico, almacén y custodia.",
       action: "central" as const,
     },
     {
-      i: "▤",
+      icon: (
+        <>
+          <path d="M3 21V10l9-6 9 6v11" />
+          <path d="M9 21v-6h6v6" />
+        </>
+      ),
       n: "Garantías Sucursal",
       tag: "TRAZABILIDAD FÍSICA",
       d: "Recepción, inventario y cajas para envío.",
       action: "sucursal" as const,
     },
     {
-      i: "⎘",
+      icon: (
+        <>
+          <path d="M3 12a9 9 0 1 0 3-6.7" />
+          <path d="M3 4v5h5" />
+        </>
+      ),
       n: "Registro de devoluciones y garantías",
       tag: "MOSTRADOR",
       d: "Captura devoluciones y garantías directamente en mostrador.",
       action: "mostrador" as const,
     },
     {
-      i: "↗",
+      icon: (
+        <>
+          <rect x="1" y="7" width="13" height="9" rx="1" />
+          <path d="M14 10h4l3 3v3h-7z" />
+          <circle cx="6" cy="18" r="1.6" />
+          <circle cx="17" cy="18" r="1.6" />
+        </>
+      ),
       n: "Logística",
       tag: "OPERACIÓN",
       d: "Rutas, guías y seguimiento de embarques.",
     },
     {
-      i: "▦",
+      icon: (
+        <>
+          <path d="M3 7l9-4 9 4-9 4-9-4z" />
+          <path d="M3 7v10l9 4 9-4V7" />
+          <path d="M12 11v10" />
+        </>
+      ),
       n: "Inventarios",
       tag: "OPERACIÓN",
       d: "Existencias y ubicaciones operativas.",
     },
     {
-      i: "▣",
+      icon: (
+        <>
+          <path d="M4 12h4l2 3h4l2-3h4" />
+          <path d="M4 12V6a1 1 0 0 1 1-1h14a1 1 0 0 1 1 1v6" />
+          <path d="M4 12v6a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-6" />
+        </>
+      ),
       n: "Recepción",
       tag: "OPERACIÓN",
       d: "Arribos, conteos y diferencias.",
     },
     {
-      i: "⌁",
+      icon: (
+        <>
+          <circle cx="9" cy="20" r="1.4" />
+          <circle cx="17" cy="20" r="1.4" />
+          <path d="M2 3h2l2.4 12.2a2 2 0 0 0 2 1.6h7.2a2 2 0 0 0 2-1.6L20 7H6" />
+        </>
+      ),
       n: "Compras",
       tag: "ABASTECIMIENTO",
       d: "Órdenes y relación con proveedores.",
     },
     {
-      i: "$",
+      icon: (
+        <>
+          <circle cx="12" cy="12" r="9" />
+          <path d="M12 7v10M15 9.5c0-1.4-1.3-2.5-3-2.5s-3 1.1-3 2.5 1.3 2 3 2.5 3 1.1 3 2.5-1.3 2.5-3 2.5-3-1.1-3-2.5" />
+        </>
+      ),
       n: "Finanzas",
       tag: "ADMINISTRACIÓN",
       d: "Notas de crédito y recuperaciones.",
@@ -13693,14 +13738,41 @@ function PortalSelector({
                         : ""
                 }
               >
-                {m.i}
+                <svg
+                  width="20"
+                  height="20"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.8"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  {m.icon}
+                </svg>
               </i>
               <span className="tag">{m.tag}</span>
               <h2>{m.n}</h2>
               <p>{m.d}</p>
-              <strong>
-                {m.action ? "Ingresar al módulo　→" : "Próximamente"}
-              </strong>
+              {m.action ? (
+                <strong>
+                  Ingresar al módulo
+                  <svg
+                    width="12"
+                    height="12"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2.2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <path d="M5 12h14M13 6l6 6-6 6" />
+                  </svg>
+                </strong>
+              ) : (
+                <span className="module-soon">Próximamente</span>
+              )}
             </button>
           ))}
         </div>
