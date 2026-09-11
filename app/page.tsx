@@ -16789,19 +16789,63 @@ function NewRequestModal({
           </button>
           <h2>Nueva solicitud</h2>
           <p>Identifica al cliente y la venta que origina la garantía.</p>
-          <div className="steps">
-            <span className="active">
-              <b>1</b> Cliente
-            </span>
-            <i />
-            <span className={cliente ? "active" : ""}>
-              <b>2</b> Producto
-            </span>
-            <i />
-            <span className={listo ? "active" : ""}>
-              <b>3</b> Factura
-            </span>
-          </div>
+          {(() => {
+            const step1Done = Boolean(cliente),
+              step2Done = Boolean(cliente && producto),
+              step3Done = listo,
+              progressPercent = step3Done ? 100 : step2Done ? 66 : step1Done ? 33 : 0,
+              stepsInfo = [
+                { label: "Cliente", done: step1Done, current: !step1Done },
+                {
+                  label: "Producto",
+                  done: step2Done,
+                  current: step1Done && !step2Done,
+                },
+                {
+                  label: "Factura",
+                  done: step3Done,
+                  current: step2Done && !step3Done,
+                },
+              ];
+            return (
+              <div className="steps">
+                <div className="steps-track">
+                  <div
+                    className="steps-fill"
+                    style={{ width: `${progressPercent}%` }}
+                  />
+                </div>
+                <div className="steps-row">
+                  {stepsInfo.map((s, i) => (
+                    <div
+                      key={s.label}
+                      className={`step-node ${s.done ? "done" : s.current ? "current" : ""}`}
+                    >
+                      <span className="step-dot">
+                        {s.done ? (
+                          <svg
+                            width="13"
+                            height="13"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="#fff"
+                            strokeWidth="2.6"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                          >
+                            <path d="M4 12.5l4.5 4.5L20 6" />
+                          </svg>
+                        ) : (
+                          i + 1
+                        )}
+                      </span>
+                      <span className="step-label">{s.label}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            );
+          })()}
         </div>
         <section className="request-fields">
           <label className="doble">
