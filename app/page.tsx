@@ -4389,10 +4389,16 @@ export default function Home() {
       "Aclara diferencias de recepción con las sucursales de origen.",
     ],
   };
-  if (!portal)
+  if (!portal) {
+    const enTransitoSucursal = casos.filter((c) => !c.entregadoAlmacen).length,
+      registrosMostrador =
+        casos.filter((c) => c.origenMostrador).length + devoluciones.length;
     return (
       <>
         <PortalSelector
+          pendientesCentral={pendingReception}
+          enTransitoSucursal={enTransitoSucursal}
+          registrosMostrador={registrosMostrador}
           onSelect={(p) => {
             if (p === "central") setVista("Solicitudes");
             setPortal(p);
@@ -4401,6 +4407,7 @@ export default function Home() {
         <QuestionModalHost />
       </>
     );
+  }
   if (portal === "sucursal")
     return (
       <>
@@ -13574,8 +13581,14 @@ function CustodyMonitor() {
 }
 function PortalSelector({
   onSelect,
+  pendientesCentral,
+  enTransitoSucursal,
+  registrosMostrador,
 }: {
   onSelect: (p: "central" | "sucursal" | "mostrador") => void;
+  pendientesCentral: number;
+  enTransitoSucursal: number;
+  registrosMostrador: number;
 }) {
   const modules = [
     {
@@ -13589,6 +13602,9 @@ function PortalSelector({
       tag: "OPERACIÓN CORPORATIVA",
       d: "Solicitudes, diagnóstico, almacén y custodia.",
       action: "central" as const,
+      statClass: "stat-central",
+      statLabel: "Pendientes de recibir",
+      statValue: pendientesCentral,
     },
     {
       icon: (
@@ -13601,6 +13617,9 @@ function PortalSelector({
       tag: "TRAZABILIDAD FÍSICA",
       d: "Recepción, inventario y cajas para envío.",
       action: "sucursal" as const,
+      statClass: "stat-branch",
+      statLabel: "Garantías en tránsito",
+      statValue: enTransitoSucursal,
     },
     {
       icon: (
@@ -13613,6 +13632,9 @@ function PortalSelector({
       tag: "MOSTRADOR",
       d: "Captura devoluciones y garantías directamente en mostrador.",
       action: "mostrador" as const,
+      statClass: "stat-mostrador",
+      statLabel: "Registros capturados",
+      statValue: registrosMostrador,
     },
     {
       icon: (
@@ -13675,6 +13697,8 @@ function PortalSelector({
       d: "Notas de crédito y recuperaciones.",
     },
   ];
+  const modulosActivos = modules.filter((m) => m.action);
+  const modulosProximamente = modules.filter((m) => !m.action);
   return (
     <main className="portal portal-blue">
       <header>
@@ -13693,17 +13717,17 @@ function PortalSelector({
       <section>
         <div className="portal-copy">
           <small>PLATAFORMA OPERATIVA</small>
-          <h1>¿Dónde deseas trabajar?</h1>
+          <h1>Hola, Andrea. ¿Dónde deseas trabajar?</h1>
           <p>
-            Selecciona el módulo de acuerdo con las actividades que realizarás.
+            Tus módulos muestran lo pendiente de hoy para que decidas por
+            dónde empezar.
           </p>
         </div>
         <div className="module-grid">
-          {modules.map((m) => (
+          {modulosActivos.map((m) => (
             <button
               key={m.n}
-              className={m.action ? "enabled" : "example"}
-              disabled={!m.action}
+              className="enabled"
               onClick={() => m.action && onSelect(m.action)}
             >
               <i
@@ -13712,9 +13736,7 @@ function PortalSelector({
                     ? "central-icon"
                     : m.action === "sucursal"
                       ? "branch-icon"
-                      : m.action === "mostrador"
-                        ? "mostrador-icon"
-                        : ""
+                      : "mostrador-icon"
                 }
               >
                 <svg
@@ -13733,26 +13755,46 @@ function PortalSelector({
               <span className="tag">{m.tag}</span>
               <h2>{m.n}</h2>
               <p>{m.d}</p>
-              {m.action ? (
-                <strong>
-                  Ingresar al módulo
-                  <svg
-                    width="12"
-                    height="12"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2.2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  >
-                    <path d="M5 12h14M13 6l6 6-6 6" />
-                  </svg>
-                </strong>
-              ) : (
-                <span className="module-soon">Próximamente</span>
-              )}
+              <span className={`module-stat ${m.statClass}`}>
+                {m.statLabel}
+                <b>{m.statValue}</b>
+              </span>
+              <strong>
+                Ingresar al módulo
+                <svg
+                  width="12"
+                  height="12"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2.2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <path d="M5 12h14M13 6l6 6-6 6" />
+                </svg>
+              </strong>
             </button>
+          ))}
+        </div>
+        <p className="coming-soon-label">PRÓXIMAMENTE</p>
+        <div className="coming-soon-row">
+          {modulosProximamente.map((m) => (
+            <span className="coming-soon-chip" key={m.n}>
+              <svg
+                width="14"
+                height="14"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.8"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                {m.icon}
+              </svg>
+              {m.n}
+            </span>
           ))}
         </div>
         <p className="portal-note">
