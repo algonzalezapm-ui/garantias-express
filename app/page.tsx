@@ -13633,12 +13633,6 @@ function PortalSelector({
       tag: "ADMINISTRACIÓN",
       d: "Notas de crédito y recuperaciones.",
     },
-    {
-      i: "△",
-      n: "Calidad",
-      tag: "CONTROL",
-      d: "Alertas, recurrencias y bloqueos.",
-    },
   ];
   return (
     <main className="portal portal-blue">
@@ -14953,8 +14947,8 @@ function DevolucionModal({
                   <div className="devolucion-linea th">
                     <span>Código</span>
                     <span>Descripción</span>
-                    <span>Disponible</span>
-                    <span>Cantidad</span>
+                    <span>Pzs. disponibles</span>
+                    <span>Pzs. a devolver</span>
                     <span>Precio</span>
                     <span>Descuento (%)</span>
                     <span>Motivo</span>
@@ -15857,12 +15851,9 @@ function SucursalTracePortal({
       custodia: "Con el cliente",
     },
   ];
-  const [tab, setTab] = useState<"pending" | "inventory" | "shipping">(
-      "pending",
-    ),
+  const [tab, setTab] = useState<"pending" | "shipping">("pending"),
     [pending, setPending] = useState(seeded),
     [openBox, setOpenBox] = useState<Caso[]>([]),
-    [inventory, setInventory] = useState<Caso[]>([]),
     [boxes, setBoxes] = useState<
       {
         id: string;
@@ -15885,7 +15876,6 @@ function SucursalTracePortal({
       const yaListado = new Set([
         ...x.map((p) => p.id),
         ...openBox.map((p) => p.id),
-        ...inventory.map((p) => p.id),
       ]);
       const entrantes = casos.filter(
         (c) =>
@@ -15924,17 +15914,6 @@ function SucursalTracePortal({
       setPending((x) => x.filter((i) => i.id !== c.id));
       setOpenBox((x) => [...x, c]);
       notify("Producto agregado a Caja Abierta");
-    },
-    toInventory = async (c: Caso) => {
-      if (
-        !(await askQuestion(
-          `¿Confirmas recibir ${c.id} y moverlo al almacén de la sucursal?`,
-        ))
-      )
-        return;
-      setPending((x) => x.filter((i) => i.id !== c.id));
-      setInventory((x) => [...x, c]);
-      notify("Producto recibido y movido a almacén");
     },
     generate = async () => {
       if (
@@ -16003,12 +15982,6 @@ function SucursalTracePortal({
             Por recibir <em>{pending.length}</em>
           </button>
           <button
-            className={tab === "inventory" ? "activo" : ""}
-            onClick={() => setTab("inventory")}
-          >
-            Inventario <em>{inventory.length}</em>
-          </button>
-          <button
             className={tab === "shipping" ? "activo" : ""}
             onClick={() => setTab("shipping")}
           >
@@ -16025,11 +15998,7 @@ function SucursalTracePortal({
           <div>
             <small>SUCURSAL 014 · ZAPOPAN NORTE</small>
             <h1>
-              {tab === "pending"
-                ? "Arribo de garantías"
-                : tab === "inventory"
-                  ? "Inventario de sucursal"
-                  : "Concentrado de cajas"}
+              {tab === "pending" ? "Arribo de garantías" : "Concentrado de cajas"}
             </h1>
             <p>
               {tab === "shipping"
@@ -16044,13 +16013,6 @@ function SucursalTracePortal({
             <span>
               <small>POR RECIBIR</small>
               <b>{pending.length}</b>
-            </span>
-          </article>
-          <article className={tab === "inventory" ? "active" : ""}>
-            <i>▤</i>
-            <span>
-              <small>INVENTARIO</small>
-              <b>{inventory.length}</b>
             </span>
           </article>
           <article className={tab === "shipping" ? "active" : ""}>
@@ -16095,7 +16057,7 @@ function SucursalTracePortal({
                     key={c.id}
                     onClick={() => setSelected(c)}
                   >
-                    <i>{i % 3 === 2 ? "▤" : "↓"}</i>
+                    <i>↓</i>
                     <div>
                       <small>
                         {c.id} · {c.origenMostrador ? "Mostrador" : "Garantías Central"}
@@ -16122,18 +16084,16 @@ function SucursalTracePortal({
                     </span>
                     <span>
                       <small>DESTINO</small>
-                      <b>{i % 3 === 2 ? "Almacén" : "Caja Abierta"}</b>
+                      <b>Caja Abierta</b>
                     </span>
                     <button
                       className="primario"
                       onClick={(e) => {
                         e.stopPropagation();
-                        i % 3 === 2 ? toInventory(c) : toBox(c);
+                        toBox(c);
                       }}
                     >
-                      {i % 3 === 2
-                        ? "Recibir y mover a almacén"
-                        : "Recibir y agregar a caja"}
+                      Recibir y agregar a caja
                     </button>
                   </article>
                 ))}
@@ -16183,38 +16143,6 @@ function SucursalTracePortal({
               </button>
               <small>Sólo agrupa las solicitudes agregadas actualmente.</small>
             </aside>
-          </section>
-        )}
-        {tab === "inventory" && (
-          <section className="panel boxes-concentrate branch-inventory-list">
-            <div className="trace-head">
-              <div>
-                <h2>Productos en almacén</h2>
-                <p>Recibidos directamente desde la bandeja Por recibir.</p>
-              </div>
-              <span>{inventory.length}</span>
-            </div>
-            {inventory.map((c) => (
-              <article key={c.id}>
-                <i>▤</i>
-                <div>
-                  <small>{c.id}</small>
-                  <strong>{c.producto}</strong>
-                  <p>{c.sku}</p>
-                </div>
-                <span className="branch-custody-state stored custody-card">
-                  <i>⌖</i>
-                  <span>
-                    <small>ESTADO DE CUSTODIA</small>
-                    <b>En sucursal</b>
-                    <em>Recepción confirmada</em>
-                  </span>
-                </span>
-                <span className="sent stored-status">
-                  <i>✓</i> Almacenado
-                </span>
-              </article>
-            ))}
           </section>
         )}
         {tab === "shipping" && (
@@ -16666,6 +16594,8 @@ function NewRequestModal({
     [skuTexto, setSkuTexto] = useState(""),
     [producto, setProducto] = useState<(typeof productos)[number] | null>(null),
     [factura, setFactura] = useState(""),
+    [facturaTexto, setFacturaTexto] = useState(""),
+    [facturaError, setFacturaError] = useState(false),
     [diagnostico, setDiagnostico] = useState(false),
     [resultado, setResultado] = useState<"Procede" | "No procede">("Procede"),
     [observacion, setObservacion] = useState(obsProcede),
@@ -16696,6 +16626,8 @@ function NewRequestModal({
     setSkuTexto("");
     setProducto(null);
     setFactura("");
+    setFacturaTexto("");
+    setFacturaError(false);
     setBatteryBase(2650);
     setBatteryMonths(19);
     setBatteryApplied(false);
@@ -16709,7 +16641,29 @@ function NewRequestModal({
       (p) => p.sku === limpio || `${p.sku} — ${p.descripcion}` === limpio,
     );
     setProducto(encontrado || null);
-    setFactura("");
+    if (cliente?.id !== "1") setFactura("");
+  };
+  const cambiarFacturaTexto = (valor: string) => {
+    setFacturaTexto(valor);
+    setFacturaError(false);
+    if (factura) {
+      setFactura("");
+      setSkuTexto("");
+      setProducto(null);
+    }
+  };
+  const validarFactura = () => {
+    const limpio = facturaTexto.trim().toUpperCase();
+    const encontrada = facturas.find(
+      (f) => f.folio === limpio && f.clienteId === cliente?.id,
+    );
+    if (encontrada) {
+      setFactura(encontrada.folio);
+      setFacturaError(false);
+    } else {
+      setFactura("");
+      setFacturaError(true);
+    }
   };
   const disponibles =
       cliente && producto
@@ -16831,6 +16785,43 @@ function NewRequestModal({
                 : "Determinado por la clasificación del cliente."}
             </small>
           </label>
+          {cliente?.id === "1" && (
+            <label className="doble">
+              Número de factura
+              <div className="search-field">
+                ⌕
+                <input
+                  value={facturaTexto}
+                  onChange={(e) => cambiarFacturaTexto(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      validarFactura();
+                    }
+                  }}
+                  placeholder="Ej. FA-832604"
+                />
+              </div>
+              {factura ? (
+                <small className="validated">✓ Factura {factura} validada</small>
+              ) : (
+                <button
+                  type="button"
+                  className="primario"
+                  onClick={validarFactura}
+                  disabled={!facturaTexto.trim()}
+                >
+                  Validar factura
+                </button>
+              )}
+              {facturaError && (
+                <small style={{ color: "#b3261e" }}>
+                  No se encontró una factura con ese número para este cliente.
+                </small>
+              )}
+              <input type="hidden" name="factura" value={factura} />
+            </label>
+          )}
           <label>
             SKU
             <div className="search-field">
@@ -16840,7 +16831,7 @@ function NewRequestModal({
                 value={skuTexto}
                 onChange={(e) => elegirProducto(e.target.value)}
                 placeholder="Ingresa el SKU"
-                disabled={!cliente}
+                disabled={!cliente || (cliente.id === "1" && !factura)}
                 required
               />
             </div>
@@ -16867,7 +16858,25 @@ function NewRequestModal({
             value={producto?.bateria ? "on" : ""}
           />
         </section>
-        {cliente && producto ? (
+        {cliente?.id === "1" ? (
+          factura ? (
+            <div className="invoice-empty">
+              <i>✓</i>
+              <strong>Factura {factura} validada</strong>
+              <p>
+                {producto
+                  ? "Continúa con el diagnóstico de la garantía."
+                  : "Ingresa el SKU para continuar."}
+              </p>
+            </div>
+          ) : (
+            <div className="invoice-empty">
+              <i>▤</i>
+              <strong>Factura de Mostrador</strong>
+              <p>Ingresa y valida el número de factura para continuar.</p>
+            </div>
+          )
+        ) : cliente && producto ? (
           disponibles.length ? (
             <section className="invoice-section">
               <div>
