@@ -6326,7 +6326,24 @@ function Tabla({
               className={`custody-cell ${operation.holder === "Con Paquetería" ? "custody-alert" : operation.holder === "Garantías Central" ? "custody-central" : operation.holder === "Con el cliente" ? "custody-client" : operation.holder === "En sucursal" || operation.holder === "Con el asesor" ? "custody-branch" : ""}`}
             >
               <i>⌖</i>
-              <b>{operation.holder}</b>
+              <span className="custody-flow">
+                <b>{operation.holder}</b>
+                <em className="custody-next">
+                  <svg
+                    width="10"
+                    height="10"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2.4"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <path d="M5 12h14M13 6l6 6-6 6" />
+                  </svg>
+                  {operation.next}
+                </em>
+              </span>
             </span>
             <span className="next-action-cell">
               <b>{operation.next}</b>
