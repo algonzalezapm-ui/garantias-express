@@ -589,6 +589,7 @@ type Caso = {
   caja?: string;
   origenMostrador?: boolean;
   entregadoAlmacen?: boolean;
+  recibidaEnMostrador?: boolean;
   usuario?: string;
   historial?: HistorialEvento[];
 };
@@ -4305,6 +4306,35 @@ export default function Home() {
     );
     avisar(`${id} entregado a Garantías Sucursal`);
   }
+  async function recibirGarantiaEnMostrador(id: string) {
+    if (
+      !(await askQuestion(
+        `¿Confirmas la recepción de la garantía ${id} en mostrador?`,
+      ))
+    )
+      return false;
+    setCasos((x) =>
+      x.map((c) =>
+        c.id === id
+          ? {
+              ...c,
+              recibidaEnMostrador: true,
+              custodia: "Con el asesor",
+              historial: [
+                ...(c.historial || []),
+                {
+                  fecha: "4 sep 2026 · Ahora",
+                  usuario: "Luis Martínez",
+                  evento: "Recibida en Mostrador",
+                },
+              ],
+            }
+          : c,
+      ),
+    );
+    avisar(`Garantía ${id} recibida en Mostrador`);
+    return true;
+  }
   async function entregarDevolucionAAlmacen(folio: string) {
     if (
       !(await askQuestion(`¿Confirmas entregar la devolución ${folio} a Garantías Sucursal?`))
@@ -4434,6 +4464,7 @@ export default function Home() {
           onCrearDevolucion={crearDevolucion}
           onEntregarGarantia={entregarGarantiaAAlmacen}
           onEntregarDevolucion={entregarDevolucionAAlmacen}
+          onRecibirGarantia={recibirGarantiaEnMostrador}
           onBack={() => setPortal(null)}
         />
         <QuestionModalHost />
@@ -14183,6 +14214,7 @@ function MostradorPortal({
   onCrearDevolucion,
   onEntregarGarantia,
   onEntregarDevolucion,
+  onRecibirGarantia,
   onBack,
 }: {
   casos: Caso[];
@@ -14198,10 +14230,12 @@ function MostradorPortal({
   ) => void;
   onEntregarGarantia: (id: string) => void;
   onEntregarDevolucion: (folio: string) => void;
+  onRecibirGarantia: (id: string) => Promise<boolean>;
   onBack: () => void;
 }) {
   const [selectorOpen, setSelectorOpen] = useState(false),
     [flow, setFlow] = useState<"garantia" | "devolucion" | null>(null),
+    [recibirGarantiaOpen, setRecibirGarantiaOpen] = useState(false),
     [detalleDevolucion, setDetalleDevolucion] = useState<Devolucion | null>(
       null,
     ),
@@ -14209,7 +14243,9 @@ function MostradorPortal({
     [buscarTexto, setBuscarTexto] = useState(""),
     [fechaDesde, setFechaDesde] = useState(""),
     [fechaHasta, setFechaHasta] = useState("");
-  const misGarantias = casos.filter((c) => c.origenMostrador);
+  const misGarantias = casos.filter(
+    (c) => c.origenMostrador || c.recibidaEnMostrador,
+  );
   const dentroDeFecha = (fechaTexto?: string) => {
     const fecha = requestDate(fechaTexto);
     return (
@@ -14253,9 +14289,14 @@ function MostradorPortal({
             <h1>Registro de devoluciones y garantías</h1>
             <p>Captura devoluciones y garantías directamente en mostrador.</p>
           </div>
-          <button className="primario" onClick={() => setSelectorOpen(true)}>
-            ＋ Nuevo registro
-          </button>
+          <div className="titulo-actions">
+            <button onClick={() => setRecibirGarantiaOpen(true)}>
+              Recibir garantía
+            </button>
+            <button className="primario" onClick={() => setSelectorOpen(true)}>
+              ＋ Nuevo registro
+            </button>
+          </div>
         </div>
 
         <div className="mostrador-filtros">
@@ -14487,6 +14528,13 @@ function MostradorPortal({
         <GarantiaDetalleModal
           caso={detalleGarantia}
           onClose={() => setDetalleGarantia(null)}
+        />
+      )}
+      {recibirGarantiaOpen && (
+        <RecibirGarantiaModal
+          casos={casos}
+          onClose={() => setRecibirGarantiaOpen(false)}
+          onRecibirGarantia={onRecibirGarantia}
         />
       )}
     </div>
@@ -14854,6 +14902,277 @@ function RecepcionDevolucionModal({
           >
             Marcar como recibida
           </button>
+        </footer>
+      </div>
+    </div>
+  );
+}
+function RecibirGarantiaModal({
+  casos,
+  onClose,
+  onRecibirGarantia,
+}: {
+  casos: Caso[];
+  onClose: () => void;
+  onRecibirGarantia: (id: string) => Promise<boolean>;
+}) {
+  const [folioQuery, setFolioQuery] = useState(""),
+    [encontrado, setEncontrado] = useState<Caso | null>(null),
+    [recibido, setRecibido] = useState(0),
+    [scanCode, setScanCode] = useState(""),
+    [entregaEfectivo, setEntregaEfectivo] = useState(false),
+    [qrEscaneado, setQrEscaneado] = useState(false);
+  const buscar = () => {
+    const q = folioQuery.trim().toUpperCase();
+    if (!q) return;
+    const match = casos.find(
+      (c) =>
+        (c.id.toUpperCase() === q ||
+          (c.notaCredito || "").toUpperCase() === q) &&
+        c.resultado === "Procede" &&
+        !c.origenMostrador &&
+        !c.recibidaEnMostrador,
+    );
+    if (!match) {
+      showInfo(
+        "No se encontró ninguna solicitud de garantía con ese folio o nota de crédito, o ya fue recibida en mostrador.",
+      );
+      return;
+    }
+    setEncontrado(match);
+  };
+  const registrarPieza = (codigoCrudo: string) => {
+    if (!encontrado) return;
+    const codigo = codigoCrudo.trim().toUpperCase();
+    if (codigo !== encontrado.sku.toUpperCase()) {
+      showInfo(`El código "${codigo}" no corresponde a esta garantía.`);
+      return;
+    }
+    if (recibido >= 1) {
+      showInfo(`Ya se registró la pieza de ${encontrado.producto}.`);
+      return;
+    }
+    setRecibido(1);
+  };
+  const escanear = () => {
+    const codigo = scanCode.trim();
+    setScanCode("");
+    if (!codigo) return;
+    registrarPieza(codigo);
+  };
+  const simularEscaneo = () => {
+    if (!encontrado) return;
+    if (recibido >= 1) {
+      showInfo("La pieza de esta garantía ya fue registrada.");
+      return;
+    }
+    registrarPieza(encontrado.sku);
+  };
+  const actualizarManual = (valor: number) =>
+    setRecibido(Math.max(0, Math.min(valor || 0, 1)));
+  const confirmarRecepcion = async () => {
+    if (!encontrado) return;
+    const ok = await onRecibirGarantia(encontrado.id);
+    if (!ok) return;
+    if (encontrado.tipoAplicacion === "Devolución de efectivo") {
+      setEntregaEfectivo(true);
+    } else {
+      onClose();
+    }
+  };
+  const confirmarEntregaEfectivo = async () => {
+    if (!encontrado) return;
+    if (
+      !(await askQuestion(
+        `¿Confirmas la entrega de efectivo al cliente por la garantía ${encontrado.id}?`,
+      ))
+    )
+      return;
+    showInfo(`Entrega de efectivo confirmada para ${encontrado.id}.`);
+    onClose();
+  };
+  return (
+    <div className="fondo">
+      <div
+        className="modal devolucion-modal"
+        onMouseDown={(e) => e.stopPropagation()}
+      >
+        <div>
+          <small>MOSTRADOR</small>
+          <button type="button" onClick={onClose}>
+            ×
+          </button>
+          <h2>Recibir garantía</h2>
+          <p>
+            {encontrado
+              ? `${encontrado.id} · ${encontrado.cliente}`
+              : "Busca la solicitud por folio o nota de crédito."}
+          </p>
+        </div>
+        {!encontrado ? (
+          <section>
+            <label style={{ gridColumn: "1 / -1" }}>
+              Folio o nota de crédito
+              <input
+                value={folioQuery}
+                onChange={(e) => setFolioQuery(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    buscar();
+                  }
+                }}
+                placeholder="GE-260824-1842 o NC-1842"
+              />
+            </label>
+          </section>
+        ) : (
+          <>
+            <section>
+              <label>
+                Cliente
+                <input value={encontrado.cliente} disabled />
+              </label>
+              <label>
+                Producto
+                <input
+                  value={`${encontrado.sku} · ${encontrado.producto}`}
+                  disabled
+                />
+              </label>
+              <label>
+                Nota de crédito
+                <input value={encontrado.notaCredito || "—"} disabled />
+              </label>
+              <label>
+                Tipo de aplicación
+                <input value={encontrado.tipoAplicacion || "—"} disabled />
+              </label>
+            </section>
+            {!entregaEfectivo && (
+              <>
+                <div className="recepcion-lineas">
+                  <div className="recepcion-linea th">
+                    <span>Código</span>
+                    <span>Descripción</span>
+                    <span>Esperado</span>
+                    <span>Recibido</span>
+                    <span>Estado</span>
+                  </div>
+                  <div className="recepcion-linea">
+                    <span>{encontrado.sku}</span>
+                    <span>{encontrado.producto}</span>
+                    <span>1</span>
+                    <span>
+                      <input
+                        type="number"
+                        min={0}
+                        max={1}
+                        value={recibido}
+                        onChange={(e) =>
+                          actualizarManual(Number(e.target.value))
+                        }
+                      />
+                    </span>
+                    <em className={recibido >= 1 ? "ok" : "warn"}>
+                      {recibido >= 1 ? "Completo" : "Pendiente"}
+                    </em>
+                  </div>
+                </div>
+                <div className="devolucion-scan">
+                  <label>
+                    Escanear código de barras
+                    <input
+                      value={scanCode}
+                      onChange={(e) => setScanCode(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          e.preventDefault();
+                          escanear();
+                        }
+                      }}
+                      placeholder="Escanea o captura el código y presiona Enter"
+                    />
+                  </label>
+                  <button type="button" onClick={simularEscaneo}>
+                    ▥ Escanear
+                  </button>
+                </div>
+              </>
+            )}
+            {entregaEfectivo && (
+              <>
+                <p className="cash-handout-message">
+                  La solicitud de garantía aplica para devolución de efectivo.
+                  Favor de escanear el QR para iniciar el proceso de entrega
+                  de efectivo al cliente.
+                </p>
+                <div className="qr-notice">
+                  <i>▦</i>
+                  <span>
+                    <b>
+                      {qrEscaneado
+                        ? "QR validado"
+                        : `QR-${encontrado.notaCredito}-U1`}
+                    </b>
+                    <small>
+                      {qrEscaneado
+                        ? "Verifica la identidad del cliente antes de confirmar la entrega."
+                        : "Código de un solo uso para devolución de efectivo."}
+                    </small>
+                  </span>
+                  {!qrEscaneado && (
+                    <button
+                      type="button"
+                      onClick={() => setQrEscaneado(true)}
+                    >
+                      Escanear QR
+                    </button>
+                  )}
+                </div>
+              </>
+            )}
+          </>
+        )}
+        <footer>
+          {!encontrado ? (
+            <>
+              <button type="button" onClick={onClose}>
+                Cancelar
+              </button>
+              <button type="button" className="primario" onClick={buscar}>
+                Buscar
+              </button>
+            </>
+          ) : !entregaEfectivo ? (
+            <>
+              <button type="button" onClick={onClose}>
+                Cancelar
+              </button>
+              <button
+                type="button"
+                className="primario"
+                disabled={recibido < 1}
+                onClick={confirmarRecepcion}
+              >
+                Marcar como recibida
+              </button>
+            </>
+          ) : (
+            <>
+              <button type="button" onClick={onClose}>
+                Cerrar
+              </button>
+              <button
+                type="button"
+                className="primario"
+                disabled={!qrEscaneado}
+                onClick={confirmarEntregaEfectivo}
+              >
+                Confirmar entrega de efectivo
+              </button>
+            </>
+          )}
         </footer>
       </div>
     </div>
