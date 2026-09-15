@@ -3057,6 +3057,8 @@ type ProviderOutboundRequest = {
   requestedQty: number;
   requestedAt: string;
   status: "Solicitada" | "Transferida";
+  carrier?: string;
+  guide?: string;
 };
 type RepairPieceStatus =
   | "Por recibir"
@@ -3888,6 +3890,60 @@ export default function Home() {
       current.filter((item) => item.requestFolio !== folio),
     );
     avisar(`${folio}: solicitud cancelada y existencia liberada`);
+  };
+  const confirmProviderOutboundShipment = async (
+    folio: string,
+    carrier: string,
+    guide: string,
+  ) => {
+    const needsGuide = carrier !== "Transporte interno";
+    const referencia = needsGuide
+      ? ` con guía ${guide}`
+      : " mediante transporte interno";
+    if (
+      !(await askQuestion(
+        `¿Confirmas la información logística de ${folio} vía ${carrier}${referencia}?`,
+      ))
+    )
+      return false;
+    setProviderOutboundRequests((current) =>
+      current.map((item) =>
+        item.requestFolio === folio
+          ? { ...item, carrier, guide: needsGuide ? guide : "" }
+          : item,
+      ),
+    );
+    avisar(`${folio}: información logística registrada`);
+    return true;
+  };
+  const redirectProviderOutboundToDestruction = async (
+    request: ProviderOutboundRequest,
+  ) => {
+    if (
+      !(await askQuestion(
+        `¿Confirmas cambiar la disposición de ${request.requestFolio} a A destrucción? La solicitud de salida a proveedor se cancelará.`,
+      ))
+    )
+      return false;
+    setProviderOutboundRequests((current) =>
+      current.filter((item) => item.requestFolio !== request.requestFolio),
+    );
+    setRoutedRequests((x) => [
+      ...x,
+      ...Array.from({ length: request.requestedQty }, (_, index) => ({
+        folio: `${request.requestFolio}-${index + 1}`,
+        sku: request.sku,
+        producto: request.product,
+        sucursal: "Garantías Central",
+        caja: "Salida a proveedor",
+        destination: "A destrucción",
+        origin: "Calidad" as const,
+      })),
+    ]);
+    avisar(
+      `${request.requestFolio}: cancelada y ${request.requestedQty} pieza(s) enviadas a Destrucción`,
+    );
+    return true;
   };
   const transferProviderOutboundRequest = (
     folio: string,
@@ -4772,6 +4828,10 @@ export default function Home() {
                   providerRequests={providerOutboundRequests}
                   onProviderRequest={createProviderOutboundRequest}
                   onCancelProviderRequest={cancelProviderOutboundRequest}
+                  onConfirmProviderShipment={confirmProviderOutboundShipment}
+                  onRedirectProviderToDestruction={
+                    redirectProviderOutboundToDestruction
+                  }
                   onCreateIncident={(incident) =>
                     setQualityIncidents((current) =>
                       current.some((item) => item.id === incident.id)
@@ -12150,6 +12210,8 @@ function QualityView({
   providerRequests,
   onProviderRequest,
   onCancelProviderRequest,
+  onConfirmProviderShipment,
+  onRedirectProviderToDestruction,
   onCreateIncident,
 }: {
   pieces: RepairPiece[];
@@ -12170,6 +12232,14 @@ function QualityView({
     requestedQty: number;
   }) => void;
   onCancelProviderRequest: (folio: string) => void;
+  onConfirmProviderShipment: (
+    folio: string,
+    carrier: string,
+    guide: string,
+  ) => Promise<boolean>;
+  onRedirectProviderToDestruction: (
+    request: ProviderOutboundRequest,
+  ) => Promise<boolean>;
   onCreateIncident: (i: QualityGeneratedIncident) => void;
 }) {
   const [tab, setTab] = useState<
@@ -12186,7 +12256,9 @@ function QualityView({
     [reason, setReason] = useState(""),
     [providerQuery, setProviderQuery] = useState(""),
     [providerSku, setProviderSku] = useState(""),
-    [providerQty, setProviderQty] = useState(1);
+    [providerQty, setProviderQty] = useState(1),
+    [shipmentTarget, setShipmentTarget] =
+      useState<ProviderOutboundRequest | null>(null);
   const validation = pieces.filter((p) => p.status === "En calidad"),
     assembly = pieces.filter((p) => p.status === "Calidad aprobada");
   const money = (n: number) =>
@@ -12341,7 +12413,16 @@ function QualityView({
           </div>
           {providerRequests.length ? (
             providerRequests.map((request) => (
-              <article key={request.requestFolio}>
+              <article
+                key={request.requestFolio}
+                className={
+                  request.status === "Solicitada" ? "provider-request-row" : ""
+                }
+                onClick={() =>
+                  request.status === "Solicitada" &&
+                  setShipmentTarget(request)
+                }
+              >
                 <span>
                   <small>FOLIO</small><b>{request.requestFolio}</b>
                   <em>{request.sku} · {request.product}</em>
@@ -12352,12 +12433,20 @@ function QualityView({
                 </span>
                 <span>
                   <small>FECHA / ESTADO</small><b>{request.requestedAt}</b>
-                  <em>{request.status}</em>
+                  <em>
+                    {request.status}
+                    {request.carrier
+                      ? ` · ${request.carrier}${request.guide ? ` · Guía ${request.guide}` : ""}`
+                      : ""}
+                  </em>
                 </span>
                 {request.status === "Solicitada" ? (
                   <button
                     className="cancel-request"
-                    onClick={() => onCancelProviderRequest(request.requestFolio)}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onCancelProviderRequest(request.requestFolio);
+                    }}
                   >
                     Cancelar solicitud
                   </button>
@@ -12677,7 +12766,164 @@ function QualityView({
           </section>
         </div>
       )}
+      {shipmentTarget && (
+        <ProviderOutboundShipmentModal
+          request={shipmentTarget}
+          onClose={() => setShipmentTarget(null)}
+          onConfirmShipment={onConfirmProviderShipment}
+          onRedirectToDestruction={onRedirectProviderToDestruction}
+        />
+      )}
     </section>
+  );
+}
+function ProviderOutboundShipmentModal({
+  request,
+  onClose,
+  onConfirmShipment,
+  onRedirectToDestruction,
+}: {
+  request: ProviderOutboundRequest;
+  onClose: () => void;
+  onConfirmShipment: (
+    folio: string,
+    carrier: string,
+    guide: string,
+  ) => Promise<boolean>;
+  onRedirectToDestruction: (
+    request: ProviderOutboundRequest,
+  ) => Promise<boolean>;
+}) {
+  const [modo, setModo] = useState<"envio" | "disposicion">("envio"),
+    [carrier, setCarrier] = useState(""),
+    [guide, setGuide] = useState("");
+  const needsGuide = carrier !== "" && carrier !== "Transporte interno";
+  const confirmarEnvio = async () => {
+    if (!carrier || (needsGuide && !guide)) return;
+    const ok = await onConfirmShipment(request.requestFolio, carrier, guide);
+    if (ok) onClose();
+  };
+  const confirmarDisposicion = async () => {
+    const ok = await onRedirectToDestruction(request);
+    if (ok) onClose();
+  };
+  return (
+    <div className="fondo">
+      <div
+        className="modal devolucion-modal"
+        onMouseDown={(e) => e.stopPropagation()}
+      >
+        <div>
+          <small>CALIDAD · SALIDA A PROVEEDOR</small>
+          <button type="button" onClick={onClose}>
+            ×
+          </button>
+          <h2>Envío a proveedor</h2>
+          <p>
+            {request.requestFolio} · {request.sku} · {request.product}
+          </p>
+        </div>
+        <section>
+          <label>
+            Proveedor
+            <input value={request.provider} disabled />
+          </label>
+          <label>
+            Cantidad
+            <input value={`${request.requestedQty} pieza(s)`} disabled />
+          </label>
+        </section>
+        <nav className="provider-shipment-modes">
+          <button
+            type="button"
+            className={modo === "envio" ? "active" : ""}
+            onClick={() => setModo("envio")}
+          >
+            Información logística
+          </button>
+          <button
+            type="button"
+            className={modo === "disposicion" ? "active" : ""}
+            onClick={() => setModo("disposicion")}
+          >
+            Cambiar disposición
+          </button>
+        </nav>
+        {modo === "envio" ? (
+          <section>
+            <label>
+              Paquetería
+              <select
+                value={carrier}
+                onChange={(e) => {
+                  const value = e.target.value;
+                  setCarrier(value);
+                  if (value === "Transporte interno") setGuide("");
+                }}
+              >
+                <option value="">Seleccionar paquetería</option>
+                <option>Paquetexpress</option>
+                <option>Estafeta</option>
+                <option>DHL</option>
+                <option>Transporte interno</option>
+              </select>
+            </label>
+            <label>
+              Número de guía
+              <input
+                disabled={!carrier || carrier === "Transporte interno"}
+                value={guide}
+                onChange={(e) => setGuide(e.target.value)}
+                placeholder={
+                  carrier === "Transporte interno"
+                    ? "No aplica para transporte interno"
+                    : "Número de guía"
+                }
+              />
+            </label>
+          </section>
+        ) : (
+          <>
+            <section>
+              <label style={{ gridColumn: "1 / -1" }}>
+                Nueva disposición
+                <select defaultValue="A destrucción" disabled>
+                  <option>A destrucción</option>
+                </select>
+              </label>
+            </section>
+            <p className="cash-handout-message">
+              La solicitud de salida a proveedor se cancelará y{" "}
+              {request.requestedQty} pieza(s) de {request.sku} se enviarán a
+              la cola de destrucción de Garantías Central.
+            </p>
+          </>
+        )}
+        <footer>
+          <button type="button" onClick={onClose}>
+            Cancelar
+          </button>
+          {modo === "envio" ? (
+            <button
+              type="button"
+              className="primario"
+              disabled={!carrier || (needsGuide && !guide)}
+              onClick={confirmarEnvio}
+            >
+              Confirmar envío
+            </button>
+          ) : (
+            <button
+              type="button"
+              className="primario"
+              onClick={confirmarDisposicion}
+            >
+              Confirmar cambio de disposición
+            </button>
+          )}
+        </footer>
+      </div>
+    </div>
   );
 }
 type IncidentStatus = "Abierto" | "En aclaración" | "Resuelto";
