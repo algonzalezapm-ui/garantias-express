@@ -715,7 +715,7 @@ const data: Caso[] = [
     sku: "NGK-7090",
     canal: "No Retail",
     estado: "Por recibir",
-    tiempo: "1 h 6 min",
+    tiempo: "66 min",
     recibido: false,
     resultado: "Procede",
     notaCredito: "NC-1849",
@@ -733,7 +733,7 @@ const data: Caso[] = [
     sku: "DE-2341",
     canal: "Retail",
     estado: "Diagnóstico completado",
-    tiempo: "1 h 12 min",
+    tiempo: "72 min",
     recibido: true,
     resultado: "No procede",
     fechaSolicitud: "23 ago 2026 · 11:14",
@@ -747,7 +747,7 @@ const data: Caso[] = [
     sku: "FR-D1287",
     canal: "No Retail",
     estado: "Producto en custodia",
-    tiempo: "2 h 4 min",
+    tiempo: "124 min",
     recibido: true,
     resultado: "Procede",
     notaCredito: "NC-1828",
@@ -766,7 +766,7 @@ const data: Caso[] = [
     sku: "DE-2341",
     canal: "No Retail",
     estado: "Por recibir",
-    tiempo: "1 h 35 min",
+    tiempo: "95 min",
     recibido: false,
     resultado: "Procede",
     notaCredito: "NC-1838",
@@ -785,7 +785,7 @@ const data: Caso[] = [
     sku: "FR-D1287",
     canal: "No Retail",
     estado: "Por recibir",
-    tiempo: "2 h",
+    tiempo: "120 min",
     recibido: false,
     resultado: "Procede",
     notaCredito: "NC-1835",
@@ -804,7 +804,7 @@ const data: Caso[] = [
     sku: "GMB-1256",
     canal: "No Retail",
     estado: "Por recibir",
-    tiempo: "3 h",
+    tiempo: "180 min",
     recibido: false,
     resultado: "Procede",
     notaCredito: "NC-1824",
@@ -823,7 +823,7 @@ const data: Caso[] = [
     sku: "DE-2341",
     canal: "No Retail",
     estado: "Por recibir",
-    tiempo: "1 día",
+    tiempo: "1440 min",
     recibido: false,
     resultado: "Procede",
     notaCredito: "NC-1798",
@@ -4177,22 +4177,30 @@ export default function Home() {
               currency: "MXN",
             })
           : facturas.find((x) => x.folio === folio)?.precio || "$0.00";
+    const idsUsados = new Set(casos.map((x) => x.id)),
+      ncUsadas = new Set(casos.map((x) => x.notaCredito).filter(Boolean));
+    let folioNumero = 1843;
+    while (
+      idsUsados.has(`GE-260824-${folioNumero}`) ||
+      ncUsadas.has(`NC-${String(folioNumero).padStart(4, "0")}`)
+    )
+      folioNumero++;
     const c: Caso = {
-      id: `GE-260824-${1843 + casos.length}`,
+      id: `GE-260824-${folioNumero}`,
       sucursal: String(f.get("sucursal")),
       cliente: String(f.get("cliente")),
       producto: String(f.get("producto")),
       sku: String(f.get("sku")),
       canal: String(f.get("canal")) as Caso["canal"],
       estado: "Diagnóstico completado",
-      tiempo: "Ahora",
+      tiempo: "1 min",
       recibido: false,
       bateria: f.get("bateria") === "on",
       resultado,
       observacion: String(f.get("observacion")),
       notaCredito:
         resultado === "Procede"
-          ? `NC-${String(1843 + casos.length).padStart(4, "0")}`
+          ? `NC-${String(folioNumero).padStart(4, "0")}`
           : undefined,
       tipoAplicacion: resultado === "Procede" ? tipo : undefined,
       importeBonificacion: resultado === "Procede" ? importe : undefined,
@@ -4252,7 +4260,7 @@ export default function Home() {
       sku: String(f.get("sku")),
       canal: String(f.get("canal")) as Caso["canal"],
       estado: "Diagnóstico completado",
-      tiempo: "Ahora",
+      tiempo: "1 min",
       recibido: false,
       bateria: f.get("bateria") === "on",
       resultado,
@@ -5210,7 +5218,7 @@ function FreshchatSimulator({
       sku: chat.sku,
       canal: chat.canal,
       estado: "Nueva",
-      tiempo: "Ahora",
+      tiempo: "1 min",
       recibido: false,
       bateria: chat.bateria,
       factura: chosen,
