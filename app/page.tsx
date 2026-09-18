@@ -3065,20 +3065,26 @@ const almacenSucursalesSeed = [
   "Querétaro Centro",
   "Aguascalientes Sur",
 ];
+const recepcionInicialRunningTotals: Record<string, number> = {};
 const movimientosRecepcionInicialSeed: MovimientoInventario[] =
-  inventoryRows.map((row, index) => ({
-    documento: `REC-INICIAL-${String(index + 1).padStart(2, "0")}`,
-    orden: 1,
-    fecha: `${String((index % 10) + 1).padStart(2, "0")} sep 2026 · ${String(8 + (index % 6)).padStart(2, "0")}:00`,
-    concepto: "Entrada por recepción",
-    origen: almacenSucursalesSeed[index % almacenSucursalesSeed.length],
-    destino: "Garantías Central",
-    sku: row.sku,
-    cantidad: row.qty,
-    cantidadAnterior: 0,
-    cantidadNueva: row.qty,
-    observaciones: `Recepción inicial en Almacén de ${row.type === "Reparación" ? "reparación" : "proveedor"}`,
-  }));
+  inventoryRows.map((row, index) => {
+    const anterior = recepcionInicialRunningTotals[row.sku] ?? 0,
+      nueva = anterior + row.qty;
+    recepcionInicialRunningTotals[row.sku] = nueva;
+    return {
+      documento: `REC-INICIAL-${String(index + 1).padStart(2, "0")}`,
+      orden: 1,
+      fecha: `${String((index % 10) + 1).padStart(2, "0")} sep 2026 · ${String(8 + (index % 6)).padStart(2, "0")}:00`,
+      concepto: "Entrada por recepción",
+      origen: almacenSucursalesSeed[index % almacenSucursalesSeed.length],
+      destino: "Garantías Central",
+      sku: row.sku,
+      cantidad: row.qty,
+      cantidadAnterior: anterior,
+      cantidadNueva: nueva,
+      observaciones: `Recepción inicial en Almacén de ${row.type === "Reparación" ? "reparación" : "proveedor"}`,
+    };
+  });
 const movimientosInventarioSeed: MovimientoInventario[] = [
   ...movimientosRecepcionInicialSeed,
   {
@@ -3090,8 +3096,8 @@ const movimientosInventarioSeed: MovimientoInventario[] = [
     destino: "Garantías Central",
     sku: "BO-AL394",
     cantidad: 4,
-    cantidadAnterior: 6,
-    cantidadNueva: 10,
+    cantidadAnterior: 14,
+    cantidadNueva: 18,
     observaciones: "Ajuste por conteo cíclico",
   },
   {
@@ -3102,9 +3108,9 @@ const movimientosInventarioSeed: MovimientoInventario[] = [
     origen: "Garantías Central",
     destino: "Garantías Central",
     sku: "BO-AL394",
-    cantidad: 2,
-    cantidadAnterior: 10,
-    cantidadNueva: 8,
+    cantidad: 4,
+    cantidadAnterior: 18,
+    cantidadNueva: 14,
     observaciones: "Pieza dañada detectada en anaquel",
   },
   {
@@ -3116,9 +3122,22 @@ const movimientosInventarioSeed: MovimientoInventario[] = [
     destino: "Garantías Central",
     sku: "GMB-1256",
     cantidad: 3,
-    cantidadAnterior: 12,
-    cantidadNueva: 9,
+    cantidadAnterior: 27,
+    cantidadNueva: 24,
     observaciones: "Ajuste por diferencia en inventario físico",
+  },
+  {
+    documento: "SM-1004",
+    orden: 1,
+    fecha: "16 sep 2026 · 16:00",
+    concepto: "Entrada ajuste inventario",
+    origen: "Garantías Central",
+    destino: "Garantías Central",
+    sku: "GMB-1256",
+    cantidad: 3,
+    cantidadAnterior: 24,
+    cantidadNueva: 27,
+    observaciones: "Corrección tras verificar el conteo físico",
   },
 ];
 type SolicitudMovimientoInventario = {
@@ -3189,14 +3208,26 @@ type RepairPiece = {
   qualityReturn?: boolean;
   qualityReason?: string;
 };
+const REPARACION_PIECE_STATUSES: RepairPieceStatus[] = [
+  "Por recibir",
+  "Asignada al técnico",
+  "En reparación",
+  "Reparación finalizada",
+];
+const CALIDAD_PIECE_STATUSES: RepairPieceStatus[] = [
+  "En calidad",
+  "Calidad aprobada",
+];
 function WarehouseControl({
   mode,
   avisar,
   stock = inventoryRows,
+  pieces = [],
 }: {
   mode: "inventory" | "queries" | "relocate";
   avisar: (s: string) => void;
   stock?: typeof inventoryRows;
+  pieces?: RepairPiece[];
 }) {
   const [query, setQuery] = useState(""),
     [sku, setSku] = useState(""),
@@ -3212,6 +3243,41 @@ function WarehouseControl({
             .toLowerCase()
             .includes(query.toLowerCase())),
     ),
+    codigoConsulta = query.trim().toUpperCase(),
+    consultaSku =
+      mode === "queries" &&
+      codigoConsulta &&
+      (stock.some((r) => r.sku === codigoConsulta) ||
+        pieces.some((p) => p.sku === codigoConsulta))
+        ? codigoConsulta
+        : "",
+    consultaProducto =
+      stock.find((r) => r.sku === consultaSku)?.product ||
+      pieces.find((p) => p.sku === consultaSku)?.product ||
+      "",
+    consultaAlmacenReparacion = stock
+      .filter((r) => r.sku === consultaSku && r.type === "Reparación")
+      .reduce((s, r) => s + r.qty, 0),
+    consultaAlmacenProveedor = stock
+      .filter((r) => r.sku === consultaSku && r.type === "Proveedor")
+      .reduce((s, r) => s + r.qty, 0),
+    consultaEnReparacion = pieces.filter(
+      (p) =>
+        p.sku === consultaSku &&
+        REPARACION_PIECE_STATUSES.includes(p.status),
+    ).length,
+    consultaEnCalidad = pieces.filter(
+      (p) => p.sku === consultaSku && CALIDAD_PIECE_STATUSES.includes(p.status),
+    ).length,
+    consultaEnTarima = pieces.filter(
+      (p) => p.sku === consultaSku && p.status === "En tarima",
+    ).length,
+    consultaTotal =
+      consultaAlmacenReparacion +
+      consultaAlmacenProveedor +
+      consultaEnReparacion +
+      consultaEnCalidad +
+      consultaEnTarima,
     selectedRows = stock.filter((r) => r.sku === sku),
     selected = selectedRows.find((r) => r.location === origin),
     money = (n: number) =>
@@ -3399,6 +3465,30 @@ function WarehouseControl({
             La información permanecerá vacía hasta buscar un código, producto,
             ubicación o proveedor.
           </p>
+        </div>
+      ) : mode === "queries" && consultaSku ? (
+        <div className="inventory-table warehouse-location-summary">
+          <header>
+            <span>Código y producto</span>
+            <span>Almacén Reparación</span>
+            <span>Almacén Proveedor</span>
+            <span>Reparación</span>
+            <span>Calidad</span>
+            <span>En tarima</span>
+            <span>Total</span>
+          </header>
+          <article>
+            <span>
+              <b>{consultaSku}</b>
+              <small>{consultaProducto}</small>
+            </span>
+            <b>{consultaAlmacenReparacion}</b>
+            <b>{consultaAlmacenProveedor}</b>
+            <b>{consultaEnReparacion}</b>
+            <b>{consultaEnCalidad}</b>
+            <b>{consultaEnTarima}</b>
+            <b className="inventory-value">{consultaTotal}</b>
+          </article>
         </div>
       ) : (
         <div className="inventory-table inventory-table-cost">
@@ -4019,16 +4109,28 @@ export default function Home() {
       ))
     )
       return;
+    const filaNuevaPorLinea = solicitud.lineas.map((linea) => {
+      const fila = warehouseStock.find(
+          (r) => r.sku === linea.sku && r.location === linea.ubicacion,
+        ),
+        actual = fila?.qty || 0;
+      return solicitud.movimiento === "Entrada ajuste inventario"
+        ? actual + linea.cantidad
+        : Math.max(0, actual - linea.cantidad);
+    });
+    const runningSkuQty: Record<string, number> = {};
     const nuevosMovimientos: MovimientoInventario[] = solicitud.lineas.map(
       (linea, index) => {
-        const fila = warehouseStock.find(
-            (r) => r.sku === linea.sku && r.location === linea.ubicacion,
-          ),
-          anterior = fila?.qty || 0,
-          nueva =
+        const skuAnterior =
+            runningSkuQty[linea.sku] ??
+            warehouseStock
+              .filter((r) => r.sku === linea.sku)
+              .reduce((s, r) => s + r.qty, 0),
+          skuNueva =
             solicitud.movimiento === "Entrada ajuste inventario"
-              ? anterior + linea.cantidad
-              : Math.max(0, anterior - linea.cantidad);
+              ? skuAnterior + linea.cantidad
+              : Math.max(0, skuAnterior - linea.cantidad);
+        runningSkuQty[linea.sku] = skuNueva;
         return {
           documento: solicitud.folio,
           orden: index + 1,
@@ -4038,22 +4140,18 @@ export default function Home() {
           destino: solicitud.destino,
           sku: linea.sku,
           cantidad: linea.cantidad,
-          cantidadAnterior: anterior,
-          cantidadNueva: nueva,
+          cantidadAnterior: skuAnterior,
+          cantidadNueva: skuNueva,
           observaciones: solicitud.observaciones,
         };
       },
     );
     setWarehouseStock((current) =>
       current.map((r) => {
-        const linea = solicitud.lineas.find(
+        const index = solicitud.lineas.findIndex(
           (l) => l.sku === r.sku && l.ubicacion === r.location,
         );
-        if (!linea) return r;
-        const movimiento = nuevosMovimientos.find(
-          (m, i) => m.sku === r.sku && solicitud.lineas[i] === linea,
-        );
-        return movimiento ? { ...r, qty: movimiento.cantidadNueva } : r;
+        return index >= 0 ? { ...r, qty: filaNuevaPorLinea[index] } : r;
       }),
     );
     setMovimientosInventario((x) => [...nuevosMovimientos, ...x]);
@@ -4268,16 +4366,13 @@ export default function Home() {
       (item, index) => {
         const type =
             item.destination === "A reparación" ? "Reparación" : "Proveedor",
-          location = type === "Reparación" ? "REP-02-B" : "PROV-07-A",
-          key = `${item.sku}__${location}`,
           anterior =
-            runningQty[key] ??
-            warehouseStock.find(
-              (r) => r.sku === item.sku && r.location === location,
-            )?.qty ??
-            0,
+            runningQty[item.sku] ??
+            warehouseStock
+              .filter((r) => r.sku === item.sku)
+              .reduce((s, r) => s + r.qty, 0),
           nueva = anterior + 1;
-        runningQty[key] = nueva;
+        runningQty[item.sku] = nueva;
         return {
           documento: item.folio,
           orden: index + 1,
@@ -4331,7 +4426,7 @@ export default function Home() {
     const nuevosMovimientos: MovimientoInventario[] = input.grupos.map(
       (grupo, index) => {
         const anterior = warehouseStock
-          .filter((r) => r.sku === grupo.sku && r.type === "Reparación")
+          .filter((r) => r.sku === grupo.sku)
           .reduce((s, r) => s + r.qty, 0);
         return {
           documento: input.folio,
@@ -5075,6 +5170,7 @@ export default function Home() {
               onCrearSolicitudMovimiento={crearSolicitudMovimiento}
               onAprobarSolicitudMovimiento={aprobarSolicitudMovimiento}
               onRechazarSolicitudMovimiento={rechazarSolicitudMovimiento}
+              pieces={repairPieces}
             />
           )}
           {vista === "Reparación" && (
@@ -5140,6 +5236,7 @@ export default function Home() {
                     )
                   }
                   onTransferToCedis={transferPalletToCedis}
+                  onUpdatePiece={updateRepairPiece}
                 />
               )}
             </section>
@@ -10785,6 +10882,7 @@ function IntegratedWarehouseHub({
   onCrearSolicitudMovimiento,
   onAprobarSolicitudMovimiento,
   onRechazarSolicitudMovimiento,
+  pieces,
 }: {
   items: RoutedDiagnosis[];
   onStored: (folios: string[]) => void;
@@ -10815,6 +10913,7 @@ function IntegratedWarehouseHub({
   }) => void;
   onAprobarSolicitudMovimiento: (folio: string) => void;
   onRechazarSolicitudMovimiento: (folio: string) => void;
+  pieces: RepairPiece[];
 }) {
   const [workspace, setWorkspace] = useState<WarehouseWorkspace>("in-repair"),
     [category, setCategory] = useState<
@@ -11044,7 +11143,12 @@ function IntegratedWarehouseHub({
             onRechazar={onRechazarSolicitudMovimiento}
           />
         ) : (
-          <WarehouseControl mode={workspace} stock={stock} avisar={avisar} />
+          <WarehouseControl
+            mode={workspace}
+            stock={stock}
+            pieces={pieces}
+            avisar={avisar}
+          />
         )}
       </div>
     </section>
@@ -12181,6 +12285,7 @@ function AssemblyWorkspace({
   avisar,
   stock,
   onTransferToCedis,
+  onUpdatePiece,
 }: {
   pieces: RepairPiece[];
   avisar: (s: string) => void;
@@ -12189,6 +12294,7 @@ function AssemblyWorkspace({
     folio: string;
     grupos: { sku: string; producto: string; cantidad: number }[];
   }) => void;
+  onUpdatePiece: (id: string, u: Partial<RepairPiece>) => void;
 }) {
   const [mode, setMode] = useState<"pending" | "pallets">("pending"),
     [code, setCode] = useState(""),
@@ -12263,6 +12369,7 @@ function AssemblyWorkspace({
         ...current,
       ];
     });
+    selected.forEach((p) => onUpdatePiece(p.pieceId, { status: "En tarima" }));
     setChecked([]);
     setMode("pallets");
     avisar("Tarima creada correctamente");
@@ -12305,6 +12412,9 @@ function AssemblyWorkspace({
       return;
     const folio = `TR-CEDIS-${String(261 + pallets.length).padStart(4, "0")}`;
     onTransferToCedis({ folio, grupos });
+    p.pieces.forEach((piece) =>
+      onUpdatePiece(piece.pieceId, { status: "Transferida a CEDIS" }),
+    );
     setPallets((x) =>
       x.map((i) =>
         i.id === p.id ? { ...i, status: "Transferida a CEDIS", folio } : i,
@@ -13115,6 +13225,7 @@ function QualityView({
   onRedirectProviderToDestruction,
   onCreateIncident,
   onTransferToCedis,
+  onUpdatePiece,
 }: {
   pieces: RepairPiece[];
   onResolve: (
@@ -13146,6 +13257,7 @@ function QualityView({
     folio: string;
     grupos: { sku: string; producto: string; cantidad: number }[];
   }) => void;
+  onUpdatePiece: (id: string, u: Partial<RepairPiece>) => void;
   onCreateIncident: (i: QualityGeneratedIncident) => void;
 }) {
   const [tab, setTab] = useState<
@@ -13581,6 +13693,7 @@ function QualityView({
           avisar={avisar}
           stock={stock}
           onTransferToCedis={onTransferToCedis}
+          onUpdatePiece={onUpdatePiece}
         />
       ) : (
         <QualityAlertsWorkspace
