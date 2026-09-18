@@ -2847,7 +2847,9 @@ type WarehouseWorkspace =
   | "out-provider"
   | "inventory"
   | "queries"
-  | "relocate";
+  | "relocate"
+  | "kardex"
+  | "movement-requests";
 const inventoryRows = [
   {
     sku: "BO-AL394",
@@ -3039,6 +3041,77 @@ const inventoryRows = [
     type: "Proveedor",
   },
 ];
+type MovimientoInventario = {
+  documento: string;
+  orden: number;
+  fecha: string;
+  concepto: "Entrada ajuste inventario" | "Salida ajuste inventario";
+  origen: string;
+  destino: string;
+  sku: string;
+  cantidad: number;
+  cantidadAnterior: number;
+  cantidadNueva: number;
+  observaciones?: string;
+};
+const movimientosInventarioSeed: MovimientoInventario[] = [
+  {
+    documento: "SM-1001",
+    orden: 1,
+    fecha: "15 sep 2026 · 09:00",
+    concepto: "Entrada ajuste inventario",
+    origen: "Garantías Central",
+    destino: "Garantías Central",
+    sku: "BO-AL394",
+    cantidad: 4,
+    cantidadAnterior: 6,
+    cantidadNueva: 10,
+    observaciones: "Ajuste por conteo cíclico",
+  },
+  {
+    documento: "SM-1002",
+    orden: 1,
+    fecha: "17 sep 2026 · 14:30",
+    concepto: "Salida ajuste inventario",
+    origen: "Garantías Central",
+    destino: "Garantías Central",
+    sku: "BO-AL394",
+    cantidad: 2,
+    cantidadAnterior: 10,
+    cantidadNueva: 8,
+    observaciones: "Pieza dañada detectada en anaquel",
+  },
+  {
+    documento: "SM-1003",
+    orden: 1,
+    fecha: "16 sep 2026 · 11:05",
+    concepto: "Salida ajuste inventario",
+    origen: "Garantías Central",
+    destino: "Garantías Central",
+    sku: "GMB-1256",
+    cantidad: 3,
+    cantidadAnterior: 12,
+    cantidadNueva: 9,
+    observaciones: "Ajuste por diferencia en inventario físico",
+  },
+];
+type SolicitudMovimientoInventario = {
+  folio: string;
+  fecha: string;
+  motivo: string;
+  movimiento: "Entrada ajuste inventario" | "Salida ajuste inventario";
+  origen: string;
+  destino: string;
+  lineas: {
+    sku: string;
+    producto: string;
+    ubicacion: string;
+    cantidad: number;
+  }[];
+  observaciones?: string;
+  status: "Solicitada" | "Aprobada" | "Rechazada";
+  usuario: string;
+};
 type RepairRequest = {
   requestFolio: string;
   warrantyFolios: string[];
@@ -3710,6 +3783,12 @@ export default function Home() {
     },
   ]);
   const [warehouseStock, setWarehouseStock] = useState(inventoryRows);
+  const [movimientosInventario, setMovimientosInventario] = useState(
+    movimientosInventarioSeed,
+  );
+  const [solicitudesMovimiento, setSolicitudesMovimiento] = useState<
+    SolicitudMovimientoInventario[]
+  >([]);
   const [providerOutboundRequests, setProviderOutboundRequests] = useState<
     ProviderOutboundRequest[]
   >([
@@ -3857,6 +3936,113 @@ export default function Home() {
     avisar(
       `${folio}: solicitud cancelada; ${request.requestedQty} pieza(s) liberadas`,
     );
+  };
+  const crearSolicitudMovimiento = (input: {
+    motivo: string;
+    movimiento: "Entrada ajuste inventario" | "Salida ajuste inventario";
+    lineas: {
+      sku: string;
+      producto: string;
+      ubicacion: string;
+      cantidad: number;
+    }[];
+    observaciones?: string;
+  }) => {
+    const foliosUsados = new Set(solicitudesMovimiento.map((s) => s.folio));
+    let n = 1575;
+    while (foliosUsados.has(`SM-${n}`)) n++;
+    const folio = `SM-${n}`;
+    setSolicitudesMovimiento((x) => [
+      {
+        folio,
+        fecha: "18 sep 2026 · Ahora",
+        motivo: input.motivo,
+        movimiento: input.movimiento,
+        origen: "Garantías Central",
+        destino: "Garantías Central",
+        lineas: input.lineas,
+        observaciones: input.observaciones,
+        status: "Solicitada",
+        usuario: "Andrea Martínez",
+      },
+      ...x,
+    ]);
+    avisar(`${folio}: solicitud de movimiento generada`);
+  };
+  const aprobarSolicitudMovimiento = async (folio: string) => {
+    const solicitud = solicitudesMovimiento.find((s) => s.folio === folio);
+    if (!solicitud || solicitud.status !== "Solicitada") return;
+    for (const linea of solicitud.lineas) {
+      const fila = warehouseStock.find(
+          (r) => r.sku === linea.sku && r.location === linea.ubicacion,
+        ),
+        actual = fila?.qty || 0;
+      if (
+        solicitud.movimiento === "Salida ajuste inventario" &&
+        linea.cantidad > actual
+      ) {
+        avisar(
+          `No es posible aplicar ${folio}: existencia insuficiente de ${linea.sku} en ${linea.ubicacion}.`,
+        );
+        return;
+      }
+    }
+    if (
+      !(await askQuestion(
+        `¿Confirmas aprobar ${folio} y aplicar el ajuste de inventario?`,
+      ))
+    )
+      return;
+    const nuevosMovimientos: MovimientoInventario[] = solicitud.lineas.map(
+      (linea, index) => {
+        const fila = warehouseStock.find(
+            (r) => r.sku === linea.sku && r.location === linea.ubicacion,
+          ),
+          anterior = fila?.qty || 0,
+          nueva =
+            solicitud.movimiento === "Entrada ajuste inventario"
+              ? anterior + linea.cantidad
+              : Math.max(0, anterior - linea.cantidad);
+        return {
+          documento: solicitud.folio,
+          orden: index + 1,
+          fecha: "18 sep 2026 · Ahora",
+          concepto: solicitud.movimiento,
+          origen: solicitud.origen,
+          destino: solicitud.destino,
+          sku: linea.sku,
+          cantidad: linea.cantidad,
+          cantidadAnterior: anterior,
+          cantidadNueva: nueva,
+          observaciones: solicitud.observaciones,
+        };
+      },
+    );
+    setWarehouseStock((current) =>
+      current.map((r) => {
+        const linea = solicitud.lineas.find(
+          (l) => l.sku === r.sku && l.ubicacion === r.location,
+        );
+        if (!linea) return r;
+        const movimiento = nuevosMovimientos.find(
+          (m, i) => m.sku === r.sku && solicitud.lineas[i] === linea,
+        );
+        return movimiento ? { ...r, qty: movimiento.cantidadNueva } : r;
+      }),
+    );
+    setMovimientosInventario((x) => [...nuevosMovimientos, ...x]);
+    setSolicitudesMovimiento((x) =>
+      x.map((s) => (s.folio === folio ? { ...s, status: "Aprobada" } : s)),
+    );
+    avisar(`${folio}: movimiento aplicado`);
+  };
+  const rechazarSolicitudMovimiento = async (folio: string) => {
+    if (!(await askQuestion(`¿Confirmas rechazar la solicitud ${folio}?`)))
+      return;
+    setSolicitudesMovimiento((x) =>
+      x.map((s) => (s.folio === folio ? { ...s, status: "Rechazada" } : s)),
+    );
+    avisar(`${folio}: solicitud rechazada`);
   };
   const createProviderOutboundRequest = (input: {
     sku: string;
@@ -4785,6 +4971,11 @@ export default function Home() {
               stock={warehouseStock}
               onTransfer={transferRepairRequest}
               onProviderTransfer={transferProviderOutboundRequest}
+              movimientos={movimientosInventario}
+              solicitudesMovimiento={solicitudesMovimiento}
+              onCrearSolicitudMovimiento={crearSolicitudMovimiento}
+              onAprobarSolicitudMovimiento={aprobarSolicitudMovimiento}
+              onRechazarSolicitudMovimiento={rechazarSolicitudMovimiento}
             />
           )}
           {vista === "Reparación" && (
@@ -10489,6 +10680,11 @@ function IntegratedWarehouseHub({
   onTransfer,
   onProviderTransfer,
   stock,
+  movimientos,
+  solicitudesMovimiento,
+  onCrearSolicitudMovimiento,
+  onAprobarSolicitudMovimiento,
+  onRechazarSolicitudMovimiento,
 }: {
   items: RoutedDiagnosis[];
   onStored: (folios: string[]) => void;
@@ -10504,11 +10700,26 @@ function IntegratedWarehouseHub({
     scans: { location: string; scannedAt: string }[],
   ) => void;
   stock: typeof inventoryRows;
+  movimientos: MovimientoInventario[];
+  solicitudesMovimiento: SolicitudMovimientoInventario[];
+  onCrearSolicitudMovimiento: (input: {
+    motivo: string;
+    movimiento: "Entrada ajuste inventario" | "Salida ajuste inventario";
+    lineas: {
+      sku: string;
+      producto: string;
+      ubicacion: string;
+      cantidad: number;
+    }[];
+    observaciones?: string;
+  }) => void;
+  onAprobarSolicitudMovimiento: (folio: string) => void;
+  onRechazarSolicitudMovimiento: (folio: string) => void;
 }) {
   const [workspace, setWorkspace] = useState<WarehouseWorkspace>("in-repair"),
-    [category, setCategory] = useState<"entries" | "exits" | "control">(
-      "entries",
-    ),
+    [category, setCategory] = useState<
+      "entries" | "exits" | "control" | "movements"
+    >("entries"),
     repairIn = items.filter((i) => i.destination === "A reparación").length,
     providerIn = items.filter(
       (i) => i.destination === "Almacén Proveedor",
@@ -10527,7 +10738,9 @@ function IntegratedWarehouseHub({
         ? "in-repair"
         : next === "exits"
           ? "out-repair"
-          : "inventory",
+          : next === "movements"
+            ? "movement-requests"
+            : "inventory",
     );
   };
   return (
@@ -10554,6 +10767,16 @@ function IntegratedWarehouseHub({
           >
             <i>▦</i>
             <span><b>Control</b><small>Inventario y ubicaciones</small></span>
+          </button>
+          <button
+            className={category === "movements" ? "active" : ""}
+            onClick={() => chooseCategory("movements")}
+          >
+            <i>▤</i>
+            <span>
+              <b>Solicitud de movimientos</b>
+              <small>Ajustes de entrada o salida</small>
+            </span>
           </button>
         </div>
         <div className="warehouse-option-tabs">
@@ -10613,7 +10836,7 @@ function IntegratedWarehouseHub({
               </span>
             </button>
             </>
-          ) : (
+          ) : category === "control" ? (
             <>
             <button
               className={workspace === "inventory" ? "active" : ""}
@@ -10647,8 +10870,18 @@ function IntegratedWarehouseHub({
                 <em>movimiento interno</em>
               </span>
             </button>
+            <button
+              className={workspace === "kardex" ? "active" : ""}
+              onClick={() => setWorkspace("kardex")}
+            >
+              <i>▤</i>
+              <span>
+                <small>KARDEX</small>
+                <em>movimientos por código</em>
+              </span>
+            </button>
             </>
-          )}
+          ) : null}
         </div>
       </div>
       <div className="warehouse-active-work">
@@ -10667,7 +10900,11 @@ function IntegratedWarehouseHub({
                       ? "Inventario"
                       : workspace === "queries"
                         ? "Consultas"
-                        : "Cambiar ubicación"}
+                        : workspace === "kardex"
+                          ? "Kardex de movimientos"
+                          : workspace === "movement-requests"
+                            ? "Solicitud de movimientos"
+                            : "Cambiar ubicación"}
           </b>
         </div>
         {workspace === "out-repair" ? (
@@ -10696,10 +10933,391 @@ function IntegratedWarehouseHub({
           />
         ) : workspace === "inventory" ? (
           <GroupedInventoryView stock={stock} />
+        ) : workspace === "kardex" ? (
+          <InventoryKardex movimientos={movimientos} />
+        ) : workspace === "movement-requests" ? (
+          <SolicitudMovimientosView
+            stock={stock}
+            solicitudes={solicitudesMovimiento}
+            onCrear={onCrearSolicitudMovimiento}
+            onAprobar={onAprobarSolicitudMovimiento}
+            onRechazar={onRechazarSolicitudMovimiento}
+          />
         ) : (
           <WarehouseControl mode={workspace} stock={stock} avisar={avisar} />
         )}
       </div>
+    </section>
+  );
+}
+function InventoryKardex({
+  movimientos,
+}: {
+  movimientos: MovimientoInventario[];
+}) {
+  const [query, setQuery] = useState("");
+  const codigo = query.trim().toUpperCase();
+  const resultados = codigo
+    ? movimientos.filter((m) => m.sku === codigo)
+    : [];
+  return (
+    <section className="panel warehouse-control kardex-view">
+      <div className="trace-head">
+        <div>
+          <h2>Kardex de movimientos</h2>
+          <p>Consulta el historial de movimientos de un producto por código.</p>
+        </div>
+      </div>
+      <label className="outbound-search">
+        ⌕
+        <input
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder="Código de producto"
+        />
+      </label>
+      {!codigo ? (
+        <div className="warehouse-query-empty">
+          <i>⌕</i>
+          <b>Ingresa un código de producto</b>
+          <p>
+            El historial de movimientos aparecerá al buscar un código válido.
+          </p>
+        </div>
+      ) : (
+        <div className="kardex-table">
+          <header>
+            <span>Documento</span>
+            <span>Orden</span>
+            <span>Fecha</span>
+            <span>Concepto</span>
+            <span>Origen</span>
+            <span>Destino</span>
+            <span>Cantidad</span>
+            <span>Cant. anterior</span>
+            <span>Cant. nueva</span>
+            <span>Observaciones</span>
+          </header>
+          {resultados.length ? (
+            resultados.map((m, i) => (
+              <article key={`${m.documento}-${m.orden}-${i}`}>
+                <b>{m.documento}</b>
+                <span>{m.orden}</span>
+                <span>{m.fecha}</span>
+                <em
+                  className={
+                    m.concepto.startsWith("Entrada") ? "ok" : "warn"
+                  }
+                >
+                  {m.concepto}
+                </em>
+                <span>{m.origen}</span>
+                <span>{m.destino}</span>
+                <b>{m.cantidad}</b>
+                <span>{m.cantidadAnterior}</span>
+                <span>{m.cantidadNueva}</span>
+                <small>{m.observaciones || "—"}</small>
+              </article>
+            ))
+          ) : (
+            <div className="warehouse-query-empty compact">
+              <i>⌕</i>
+              <b>Sin movimientos registrados</b>
+              <p>Este código no tiene movimientos en el Kardex.</p>
+            </div>
+          )}
+        </div>
+      )}
+    </section>
+  );
+}
+function SolicitudMovimientosView({
+  stock,
+  solicitudes,
+  onCrear,
+  onAprobar,
+  onRechazar,
+}: {
+  stock: typeof inventoryRows;
+  solicitudes: SolicitudMovimientoInventario[];
+  onCrear: (input: {
+    motivo: string;
+    movimiento: "Entrada ajuste inventario" | "Salida ajuste inventario";
+    lineas: {
+      sku: string;
+      producto: string;
+      ubicacion: string;
+      cantidad: number;
+    }[];
+    observaciones?: string;
+  }) => void;
+  onAprobar: (folio: string) => void;
+  onRechazar: (folio: string) => void;
+}) {
+  const [formOpen, setFormOpen] = useState(false),
+    [motivo, setMotivo] = useState(""),
+    [movimiento, setMovimiento] = useState<
+      "Entrada ajuste inventario" | "Salida ajuste inventario"
+    >("Entrada ajuste inventario"),
+    [skuInput, setSkuInput] = useState(""),
+    [ubicacion, setUbicacion] = useState(""),
+    [cantidad, setCantidad] = useState(1),
+    [observaciones, setObservaciones] = useState(""),
+    [lineas, setLineas] = useState<
+      { sku: string; producto: string; ubicacion: string; cantidad: number }[]
+    >([]);
+  const productoEncontrado = stock.find(
+      (r) => r.sku === skuInput.trim().toUpperCase(),
+    ),
+    ubicacionesDisponibles = stock.filter(
+      (r) => r.sku === skuInput.trim().toUpperCase(),
+    );
+  const agregarLinea = () => {
+    if (!productoEncontrado || !ubicacion || cantidad < 1) return;
+    setLineas((x) => [
+      ...x,
+      {
+        sku: productoEncontrado.sku,
+        producto: productoEncontrado.product,
+        ubicacion,
+        cantidad,
+      },
+    ]);
+    setSkuInput("");
+    setUbicacion("");
+    setCantidad(1);
+  };
+  const quitarLinea = (i: number) =>
+    setLineas((x) => x.filter((_, idx) => idx !== i));
+  const cerrarFormulario = () => {
+    setFormOpen(false);
+    setMotivo("");
+    setObservaciones("");
+    setLineas([]);
+    setSkuInput("");
+    setUbicacion("");
+    setCantidad(1);
+  };
+  const enviar = async () => {
+    if (!motivo.trim() || !lineas.length) return;
+    if (
+      !(await askQuestion(
+        `¿Confirmas generar la solicitud de ${movimiento.toLowerCase()} con ${lineas.length} línea(s)?`,
+      ))
+    )
+      return;
+    onCrear({
+      motivo: motivo.trim(),
+      movimiento,
+      lineas,
+      observaciones: observaciones.trim() || undefined,
+    });
+    cerrarFormulario();
+  };
+  return (
+    <section className="panel warehouse-control movement-requests-view">
+      <div className="trace-head">
+        <div>
+          <h2>Solicitud de movimientos</h2>
+          <p>
+            Solicita ajustes de entrada o salida al inventario de Garantías
+            Central.
+          </p>
+        </div>
+        <button className="primario" onClick={() => setFormOpen(true)}>
+          ＋ Nueva solicitud
+        </button>
+      </div>
+      <div className="movement-requests-list">
+        {solicitudes.length ? (
+          solicitudes.map((s) => (
+            <article className="movement-request-row" key={s.folio}>
+              <span>
+                <small>FOLIO</small>
+                <b>{s.folio}</b>
+                <em>{s.movimiento}</em>
+              </span>
+              <span>
+                <small>MOTIVO</small>
+                <b>{s.motivo}</b>
+                <em>{s.lineas.length} línea(s)</em>
+              </span>
+              <span>
+                <small>FECHA / ESTADO</small>
+                <b>{s.fecha}</b>
+                <em>{s.status}</em>
+              </span>
+              {s.status === "Solicitada" ? (
+                <div className="movement-request-actions">
+                  <button type="button" onClick={() => onRechazar(s.folio)}>
+                    Rechazar
+                  </button>
+                  <button
+                    type="button"
+                    className="primario"
+                    onClick={() => onAprobar(s.folio)}
+                  >
+                    Aprobar
+                  </button>
+                </div>
+              ) : (
+                <em
+                  className={`request-transferred-status ${
+                    s.status === "Rechazada" ? "rejected" : ""
+                  }`}
+                >
+                  {s.status === "Aprobada" ? "✓ Aprobada" : "× Rechazada"}
+                </em>
+              )}
+            </article>
+          ))
+        ) : (
+          <div className="trace-empty">
+            <i>✓</i>
+            <strong>Sin solicitudes registradas</strong>
+            <p>Las solicitudes de movimiento aparecerán aquí.</p>
+          </div>
+        )}
+      </div>
+      {formOpen && (
+        <div className="fondo">
+          <div
+            className="modal devolucion-modal"
+            onMouseDown={(e) => e.stopPropagation()}
+          >
+            <div>
+              <small>ALMACÉN DE GARANTÍAS</small>
+              <button type="button" onClick={cerrarFormulario}>
+                ×
+              </button>
+              <h2>Solicitud de movimientos al inventario</h2>
+              <p>Origen y destino: Garantías Central</p>
+            </div>
+            <section>
+              <label>
+                Motivo
+                <input
+                  value={motivo}
+                  onChange={(e) => setMotivo(e.target.value)}
+                  placeholder="Ej. Conteo cíclico, pieza dañada…"
+                />
+              </label>
+              <label>
+                Movimiento
+                <select
+                  value={movimiento}
+                  onChange={(e) =>
+                    setMovimiento(e.target.value as typeof movimiento)
+                  }
+                >
+                  <option>Entrada ajuste inventario</option>
+                  <option>Salida ajuste inventario</option>
+                </select>
+              </label>
+            </section>
+            <div className="movement-line-builder">
+              <label>
+                Código
+                <input
+                  list="movement-skus"
+                  value={skuInput}
+                  onChange={(e) => {
+                    setSkuInput(e.target.value.toUpperCase());
+                    setUbicacion("");
+                  }}
+                  placeholder="Ingresa el código del producto"
+                />
+                <datalist id="movement-skus">
+                  {[...new Map(stock.map((r) => [r.sku, r])).values()].map(
+                    (r) => (
+                      <option value={r.sku} key={r.sku}>
+                        {r.product}
+                      </option>
+                    ),
+                  )}
+                </datalist>
+              </label>
+              <label>
+                Ubicación
+                <select
+                  value={ubicacion}
+                  disabled={!productoEncontrado}
+                  onChange={(e) => setUbicacion(e.target.value)}
+                >
+                  <option value="">Seleccionar ubicación</option>
+                  {ubicacionesDisponibles.map((r) => (
+                    <option key={r.location} value={r.location}>
+                      {r.location} · {r.qty} pzas
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                Cantidad
+                <input
+                  type="number"
+                  min={1}
+                  value={cantidad}
+                  onChange={(e) => setCantidad(Number(e.target.value))}
+                />
+              </label>
+              <button
+                type="button"
+                disabled={!productoEncontrado || !ubicacion || cantidad < 1}
+                onClick={agregarLinea}
+              >
+                Agregar renglón
+              </button>
+            </div>
+            {lineas.length > 0 && (
+              <div className="movement-lines-table">
+                <div className="movement-lines-head">
+                  <span>Código</span>
+                  <span>Producto</span>
+                  <span>Ubicación</span>
+                  <span>Cantidad</span>
+                  <span />
+                </div>
+                {lineas.map((l, i) => (
+                  <div className="movement-line-row" key={i}>
+                    <span>{l.sku}</span>
+                    <span>{l.producto}</span>
+                    <span>{l.ubicacion}</span>
+                    <span>{l.cantidad}</span>
+                    <button type="button" onClick={() => quitarLinea(i)}>
+                      ×
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+            <section>
+              <label style={{ gridColumn: "1 / -1" }}>
+                Observaciones
+                <textarea
+                  value={observaciones}
+                  onChange={(e) => setObservaciones(e.target.value)}
+                  rows={3}
+                  placeholder="Opcional"
+                />
+              </label>
+            </section>
+            <footer>
+              <button type="button" onClick={cerrarFormulario}>
+                Cancelar
+              </button>
+              <button
+                type="button"
+                className="primario"
+                disabled={!motivo.trim() || !lineas.length}
+                onClick={enviar}
+              >
+                Enviar
+              </button>
+            </footer>
+          </div>
+        </div>
+      )}
     </section>
   );
 }
