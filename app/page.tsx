@@ -592,6 +592,7 @@ type Caso = {
   recibidaEnMostrador?: boolean;
   usuario?: string;
   historial?: HistorialEvento[];
+  imagenes?: string[];
 };
 type HistorialEvento = { fecha: string; usuario: string; evento: string };
 const data: Caso[] = [
@@ -4159,7 +4160,7 @@ export default function Home() {
         : "Solicitud rechazada y dictamen generado",
     );
   };
-  function crear(e: FormEvent<HTMLFormElement>) {
+  function crear(e: FormEvent<HTMLFormElement>, imagenes: string[]) {
     e.preventDefault();
     const f = new FormData(e.currentTarget),
       folio = String(f.get("factura")),
@@ -4198,6 +4199,7 @@ export default function Home() {
       factura: folio,
       fechaSolicitud: "25 ago 2026 · Ahora",
       usuario: "Andrea Martínez",
+      imagenes: resultado === "Procede" ? imagenes : undefined,
       historial: [
         {
           fecha: "25 ago 2026 · Ahora",
@@ -6246,8 +6248,12 @@ function imprimirDictamen(c: Caso) {
     tipo === "Devolución de efectivo"
       ? `<aside class="qr"><div class="qrbox"></div><p><b>QR-${c.notaCredito}-U1</b><small>Código de un solo uso para devolución de efectivo. Validar identidad del beneficiario antes de aplicarlo.</small></p></aside>`
       : "";
+  const evidencia =
+    c.imagenes && c.imagenes.length
+      ? `<section class="evidence"><h2>Evidencia fotográfica</h2><div class="evidence-grid">${c.imagenes.map((img) => `<img src="${img}" />`).join("")}</div></section>`
+      : "";
   w.document.write(
-    `<html><head><title>Dictamen ${c.id}</title><style>@page{size:letter;margin:0}*{box-sizing:border-box}body{font-family:Arial;color:#172338;margin:0}.doc{width:7.2in;min-height:9.7in;padding:.55in .65in}.head{border-bottom:4px solid #173d79;padding-bottom:20px;display:flex;justify-content:space-between;gap:24px}.brand{background:#173d79;color:white;padding:18px 28px;font-size:24px;font-weight:bold}.head small{color:#3268ab;font-weight:bold}.head h1{margin:6px 0;font-size:22px}.meta,.data{display:grid;grid-template-columns:repeat(3,1fr);gap:1px;background:#dfe6ee;margin-top:20px}.meta div,.data div{background:#f7f9fc;padding:13px}.data{grid-template-columns:1fr 2fr}.label{font-size:8px;color:#718096;display:block}.value{font-size:12px;font-weight:bold;display:block;margin-top:5px}.status{display:inline-block;margin-top:22px;padding:8px 14px;border-radius:20px;background:${aprobado ? "#e5f6ef" : "#fdebed"};color:${aprobado ? "#14775a" : "#c63843"};font-weight:bold}.diag{border-left:4px solid #3268ab;background:#f7f9fc;padding:18px;margin-top:10px;min-height:105px;font-size:12px;line-height:1.65}.application{margin-top:20px;border:1px solid #dfe6ee;border-radius:9px;overflow:hidden}.application h2{font-size:13px;background:#edf4fc;color:#173d79;margin:0;padding:11px 15px}.application>div{display:flex;justify-content:space-between;align-items:center;padding:15px}.application span{display:flex;flex-direction:column;gap:5px}.legend{margin:0 15px 15px;border-left:4px solid #168565;background:#eef8f4;padding:11px;font-size:11px;font-weight:bold}.qr{display:flex;align-items:center;gap:12px}.qrbox{width:84px;height:84px;border:6px solid white;outline:1px solid #172c47;background:repeating-conic-gradient(#172c47 0 25%,#fff 0 50%) 0/12px 12px}.qr p{display:flex;flex-direction:column;max-width:185px;margin:0}.qr small{font-size:8px;line-height:1.4;margin-top:5px}.foot{margin-top:38px;border-top:1px solid #dce3eb;padding-top:15px;color:#718096;font-size:9px}.actions{text-align:center;margin:20px}.actions button{background:#173d79;color:white;border:0;border-radius:7px;padding:10px 18px;font-weight:bold}@media print{.actions{display:none}}</style></head><body><div class="doc"><div class="head"><div class="brand">APYMSA</div><div><small>DICTAMEN TÉCNICO</small><h1>Diagnóstico de Garantía Express</h1><p>Documento de resolución, bonificación y trazabilidad</p></div></div><div class="meta"><div><span class="label">SOLICITUD</span><span class="value">${c.id}</span></div><div><span class="label">FECHA</span><span class="value">25/08/2026</span></div><div><span class="label">RESOLUCIÓN</span><span class="value">${aprobado ? "APROBADA" : "RECHAZADA"}</span></div></div><div class="data"><div><span class="label">CLIENTE</span><span class="value">${c.cliente}</span></div><div><span class="label">PRODUCTO</span><span class="value">${c.sku} · ${c.producto}</span></div></div><span class="status">${aprobado ? "✓ GARANTÍA APROBADA" : "× GARANTÍA RECHAZADA"}</span><h2>Diagnóstico técnico</h2><div class="diag">${c.observacion || (aprobado ? obsProcede : obsNoProcede)}</div>${aprobado ? `<section class="application"><h2>Aplicación de la nota de crédito</h2><div><span><small class="label">TIPO DE BONIFICACIÓN</small><strong>${tipo}</strong><small>Folio ${c.notaCredito} · Importe ${c.importeBonificacion || "$0.00"}</small></span>${qr}</div><p class="legend">${leyenda}</p></section>` : ""}<div class="foot"><b>Departamento de Garantías · Grupo APYMSA</b><p>Documento generado electrónicamente por Garantías Express.</p></div></div><div class="actions"><button onclick="window.print()">Descargar / imprimir PDF</button></div></body></html>`,
+    `<html><head><title>Dictamen ${c.id}</title><style>@page{size:letter;margin:0}*{box-sizing:border-box}body{font-family:Arial;color:#172338;margin:0}.doc{width:7.2in;min-height:9.7in;padding:.55in .65in}.head{border-bottom:4px solid #173d79;padding-bottom:20px;display:flex;justify-content:space-between;gap:24px}.brand{background:#173d79;color:white;padding:18px 28px;font-size:24px;font-weight:bold}.head small{color:#3268ab;font-weight:bold}.head h1{margin:6px 0;font-size:22px}.meta,.data{display:grid;grid-template-columns:repeat(3,1fr);gap:1px;background:#dfe6ee;margin-top:20px}.meta div,.data div{background:#f7f9fc;padding:13px}.data{grid-template-columns:1fr 2fr}.label{font-size:8px;color:#718096;display:block}.value{font-size:12px;font-weight:bold;display:block;margin-top:5px}.status{display:inline-block;margin-top:22px;padding:8px 14px;border-radius:20px;background:${aprobado ? "#e5f6ef" : "#fdebed"};color:${aprobado ? "#14775a" : "#c63843"};font-weight:bold}.diag{border-left:4px solid #3268ab;background:#f7f9fc;padding:18px;margin-top:10px;min-height:105px;font-size:12px;line-height:1.65}.evidence{margin-top:20px;border:1px solid #dfe6ee;border-radius:9px;overflow:hidden}.evidence h2{font-size:13px;background:#edf4fc;color:#173d79;margin:0;padding:11px 15px}.evidence-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;padding:15px}.evidence-grid img{width:100%;height:140px;object-fit:cover;border-radius:6px;border:1px solid #dfe6ee}.application{margin-top:20px;border:1px solid #dfe6ee;border-radius:9px;overflow:hidden}.application h2{font-size:13px;background:#edf4fc;color:#173d79;margin:0;padding:11px 15px}.application>div{display:flex;justify-content:space-between;align-items:center;padding:15px}.application span{display:flex;flex-direction:column;gap:5px}.legend{margin:0 15px 15px;border-left:4px solid #168565;background:#eef8f4;padding:11px;font-size:11px;font-weight:bold}.qr{display:flex;align-items:center;gap:12px}.qrbox{width:84px;height:84px;border:6px solid white;outline:1px solid #172c47;background:repeating-conic-gradient(#172c47 0 25%,#fff 0 50%) 0/12px 12px}.qr p{display:flex;flex-direction:column;max-width:185px;margin:0}.qr small{font-size:8px;line-height:1.4;margin-top:5px}.foot{margin-top:38px;border-top:1px solid #dce3eb;padding-top:15px;color:#718096;font-size:9px}.actions{text-align:center;margin:20px}.actions button{background:#173d79;color:white;border:0;border-radius:7px;padding:10px 18px;font-weight:bold}@media print{.actions{display:none}}</style></head><body><div class="doc"><div class="head"><div class="brand">APYMSA</div><div><small>DICTAMEN TÉCNICO</small><h1>Diagnóstico de Garantía Express</h1><p>Documento de resolución, bonificación y trazabilidad</p></div></div><div class="meta"><div><span class="label">SOLICITUD</span><span class="value">${c.id}</span></div><div><span class="label">FECHA</span><span class="value">25/08/2026</span></div><div><span class="label">RESOLUCIÓN</span><span class="value">${aprobado ? "APROBADA" : "RECHAZADA"}</span></div></div><div class="data"><div><span class="label">CLIENTE</span><span class="value">${c.cliente}</span></div><div><span class="label">PRODUCTO</span><span class="value">${c.sku} · ${c.producto}</span></div></div><span class="status">${aprobado ? "✓ GARANTÍA APROBADA" : "× GARANTÍA RECHAZADA"}</span><h2>Diagnóstico técnico</h2><div class="diag">${c.observacion || (aprobado ? obsProcede : obsNoProcede)}</div>${evidencia}${aprobado ? `<section class="application"><h2>Aplicación de la nota de crédito</h2><div><span><small class="label">TIPO DE BONIFICACIÓN</small><strong>${tipo}</strong><small>Folio ${c.notaCredito} · Importe ${c.importeBonificacion || "$0.00"}</small></span>${qr}</div><p class="legend">${leyenda}</p></section>` : ""}<div class="foot"><b>Departamento de Garantías · Grupo APYMSA</b><p>Documento generado electrónicamente por Garantías Express.</p></div></div><div class="actions"><button onclick="window.print()">Descargar / imprimir PDF</button></div></body></html>`,
   );
   w.document.close();
   w.focus();
@@ -17320,11 +17326,12 @@ function NewRequestModal({
   consumoStock,
 }: {
   onClose: () => void;
-  onSubmit: (e: FormEvent<HTMLFormElement>) => void;
+  onSubmit: (e: FormEvent<HTMLFormElement>, imagenes: string[]) => void;
   stock: Record<string, number>;
   consumoStock: ConsumoStock[];
 }) {
-  const [clienteTexto, setClienteTexto] = useState(""),
+  const [imagenes, setImagenes] = useState<string[]>([]),
+    [clienteTexto, setClienteTexto] = useState(""),
     [cliente, setCliente] = useState<(typeof clientes)[number] | null>(null),
     [branch, setBranch] = useState(""),
     [skuTexto, setSkuTexto] = useState(""),
@@ -17348,6 +17355,21 @@ function NewRequestModal({
     setResultado(r);
     setObservacion(r === "Procede" ? obsProcede : obsNoProcede);
   };
+  const agregarImagenes = (files: FileList | null) => {
+    if (!files) return;
+    Array.from(files)
+      .filter((file) => file.type.startsWith("image/"))
+      .forEach((file) => {
+        const reader = new FileReader();
+        reader.onload = () => {
+          if (typeof reader.result === "string")
+            setImagenes((x) => [...x, reader.result as string]);
+        };
+        reader.readAsDataURL(file);
+      });
+  };
+  const quitarImagen = (index: number) =>
+    setImagenes((x) => x.filter((_, i) => i !== index));
   const elegirCliente = (valor: string) => {
     setClienteTexto(valor);
     const limpio = valor.trim().toUpperCase();
@@ -17369,6 +17391,7 @@ function NewRequestModal({
     setBatteryApplied(false);
     setDiagnostico(false);
     setChecks([false, false, false]);
+    setImagenes([]);
   };
   const elegirProducto = (valor: string) => {
     setSkuTexto(valor);
@@ -17426,7 +17449,7 @@ function NewRequestModal({
     <div className="fondo">
       <form
         className="modal request-modal"
-        onSubmit={onSubmit}
+        onSubmit={(e) => onSubmit(e, imagenes)}
         onMouseDown={(e) => e.stopPropagation()}
       >
         <div className="request-head">
@@ -17858,6 +17881,42 @@ function NewRequestModal({
                 El dictamen se generará con la resolución y observaciones
                 capturadas.
               </div>
+              {resultado === "Procede" && (
+                <div className="diagnosis-evidence">
+                  <label>
+                    <span>Evidencia fotográfica del producto</span>
+                    <small>
+                      Carga al menos una fotografía para poder confirmar la
+                      garantía. Las imágenes se incluirán en el dictamen.
+                    </small>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      multiple
+                      onChange={(e) => {
+                        agregarImagenes(e.target.files);
+                        e.target.value = "";
+                      }}
+                    />
+                  </label>
+                  {imagenes.length > 0 && (
+                    <div className="diagnosis-evidence-preview">
+                      {imagenes.map((img, i) => (
+                        <figure key={i}>
+                          <img src={img} alt={`Evidencia ${i + 1}`} />
+                          <button
+                            type="button"
+                            onClick={() => quitarImagen(i)}
+                            aria-label="Quitar imagen"
+                          >
+                            ×
+                          </button>
+                        </figure>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
               <footer>
                 <button type="button" onClick={() => setDiagnostico(false)}>
                   Regresar
@@ -17867,6 +17926,7 @@ function NewRequestModal({
                   className={
                     resultado === "Procede" ? "primario" : "reject-btn"
                   }
+                  disabled={resultado === "Procede" && imagenes.length === 0}
                   onClick={() =>
                     resultado === "Procede"
                       ? setNcConfirm(true)
