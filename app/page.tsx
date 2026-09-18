@@ -6384,6 +6384,7 @@ function Tabla({
         <span>Número de caja</span>
         <span>Nota de crédito</span>
         <span>Acción / dictamen</span>
+        <span>Tiempo de resolución</span>
       </div>
       {items.map((c) => {
         const pendiente = c.origenBot && !c.resultado,
@@ -6476,6 +6477,9 @@ function Tabla({
                 ▧ {c.resultado ? "Descargar PDF" : "Pendiente"}
               </span>
             )}
+            <span className="resolution-time-cell">
+              <b>{c.tiempo || "—"}</b>
+            </span>
           </button>
         );
       })}
