@@ -11055,6 +11055,9 @@ function SolicitudMovimientosView({
   onRechazar: (folio: string) => void;
 }) {
   const [formOpen, setFormOpen] = useState(false),
+    [detalle, setDetalle] = useState<SolicitudMovimientoInventario | null>(
+      null,
+    ),
     [motivo, setMotivo] = useState(""),
     [movimiento, setMovimiento] = useState<
       "Entrada ajuste inventario" | "Salida ajuste inventario"
@@ -11089,6 +11092,14 @@ function SolicitudMovimientosView({
   };
   const quitarLinea = (i: number) =>
     setLineas((x) => x.filter((_, idx) => idx !== i));
+  const aprobarDesdeDetalle = async (folio: string) => {
+    await onAprobar(folio);
+    setDetalle(null);
+  };
+  const rechazarDesdeDetalle = async (folio: string) => {
+    await onRechazar(folio);
+    setDetalle(null);
+  };
   const cerrarFormulario = () => {
     setFormOpen(false);
     setMotivo("");
@@ -11131,7 +11142,11 @@ function SolicitudMovimientosView({
       <div className="movement-requests-list">
         {solicitudes.length ? (
           solicitudes.map((s) => (
-            <article className="movement-request-row" key={s.folio}>
+            <article
+              className="movement-request-row"
+              key={s.folio}
+              onClick={() => setDetalle(s)}
+            >
               <span>
                 <small>FOLIO</small>
                 <b>{s.folio}</b>
@@ -11148,18 +11163,9 @@ function SolicitudMovimientosView({
                 <em>{s.status}</em>
               </span>
               {s.status === "Solicitada" ? (
-                <div className="movement-request-actions">
-                  <button type="button" onClick={() => onRechazar(s.folio)}>
-                    Rechazar
-                  </button>
-                  <button
-                    type="button"
-                    className="primario"
-                    onClick={() => onAprobar(s.folio)}
-                  >
-                    Aprobar
-                  </button>
-                </div>
+                <em className="request-transferred-status pending">
+                  Pendiente
+                </em>
               ) : (
                 <em
                   className={`request-transferred-status ${
@@ -11314,6 +11320,95 @@ function SolicitudMovimientosView({
               >
                 Enviar
               </button>
+            </footer>
+          </div>
+        </div>
+      )}
+      {detalle && (
+        <div className="fondo" onMouseDown={() => setDetalle(null)}>
+          <div
+            className="modal devolucion-modal"
+            onMouseDown={(e) => e.stopPropagation()}
+          >
+            <div>
+              <small>ALMACÉN DE GARANTÍAS</small>
+              <button type="button" onClick={() => setDetalle(null)}>
+                ×
+              </button>
+              <h2>{detalle.folio}</h2>
+              <p>{detalle.movimiento}</p>
+            </div>
+            <section>
+              <label>
+                Motivo
+                <input value={detalle.motivo} disabled />
+              </label>
+              <label>
+                Estado
+                <input value={detalle.status} disabled />
+              </label>
+              <label>
+                Fecha
+                <input value={detalle.fecha} disabled />
+              </label>
+              <label>
+                Usuario
+                <input value={detalle.usuario} disabled />
+              </label>
+              <label>
+                Origen
+                <input value={detalle.origen} disabled />
+              </label>
+              <label>
+                Destino
+                <input value={detalle.destino} disabled />
+              </label>
+            </section>
+            <div className="movement-lines-table">
+              <div className="movement-lines-head">
+                <span>Código</span>
+                <span>Producto</span>
+                <span>Ubicación</span>
+                <span>Cantidad</span>
+              </div>
+              {detalle.lineas.map((l, i) => (
+                <div className="movement-line-row" key={i}>
+                  <span>{l.sku}</span>
+                  <span>{l.producto}</span>
+                  <span>{l.ubicacion}</span>
+                  <span>{l.cantidad}</span>
+                </div>
+              ))}
+            </div>
+            {detalle.observaciones && (
+              <section>
+                <label style={{ gridColumn: "1 / -1" }}>
+                  Observaciones
+                  <textarea value={detalle.observaciones} rows={3} disabled />
+                </label>
+              </section>
+            )}
+            <footer>
+              <button type="button" onClick={() => setDetalle(null)}>
+                Cerrar
+              </button>
+              {detalle.status === "Solicitada" && (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => rechazarDesdeDetalle(detalle.folio)}
+                  >
+                    Rechazar
+                  </button>
+                  <button
+                    type="button"
+                    className="primario"
+                    onClick={() => aprobarDesdeDetalle(detalle.folio)}
+                  >
+                    Aprobar
+                  </button>
+                </>
+              )}
             </footer>
           </div>
         </div>
