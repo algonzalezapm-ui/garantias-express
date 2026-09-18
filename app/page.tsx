@@ -863,6 +863,12 @@ function requestDate(value?: string) {
     ? `${parts[2]}-${months[parts[1]] || "01"}-${parts[0].padStart(2, "0")}`
     : "";
 }
+const horaActual = () =>
+  new Date().toLocaleTimeString("es-MX", {
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  });
 type QuestionDetail = {
   message: string;
   resolve: (accepted: boolean) => void;
@@ -4030,7 +4036,7 @@ export default function Home() {
         ...input,
         requestFolio,
         warrantyFolios,
-        requestedAt: "25 ago 2026 · Ahora",
+        requestedAt: `25 ago 2026 · ${horaActual()}`,
         status: "Solicitada",
       },
       ...x,
@@ -4071,7 +4077,7 @@ export default function Home() {
     setSolicitudesMovimiento((x) => [
       {
         folio,
-        fecha: "18 sep 2026 · Ahora",
+        fecha: `18 sep 2026 · ${horaActual()}`,
         motivo: input.motivo,
         movimiento: input.movimiento,
         origen: "Garantías Central",
@@ -4134,7 +4140,7 @@ export default function Home() {
         return {
           documento: solicitud.folio,
           orden: index + 1,
-          fecha: "18 sep 2026 · Ahora",
+          fecha: `18 sep 2026 · ${horaActual()}`,
           concepto: solicitud.movimiento,
           origen: solicitud.origen,
           destino: solicitud.destino,
@@ -4179,7 +4185,7 @@ export default function Home() {
       {
         ...input,
         requestFolio,
-        requestedAt: "28 ago 2026 · Ahora",
+        requestedAt: `28 ago 2026 · ${horaActual()}`,
         status: "Pendiente",
       },
       ...current,
@@ -4301,7 +4307,7 @@ export default function Home() {
       );
       return;
     }
-    const now = "26 ago 2026 · Ahora",
+    const now = `26 ago 2026 · ${horaActual()}`,
       withdrawn = scans.reduce(
         (a, s) => ((a[s.location] = (a[s.location] || 0) + 1), a),
         {} as Record<string, number>,
@@ -4376,7 +4382,7 @@ export default function Home() {
         return {
           documento: item.folio,
           orden: index + 1,
-          fecha: "18 sep 2026 · Ahora",
+          fecha: `18 sep 2026 · ${horaActual()}`,
           concepto: "Entrada por recepción",
           origen: item.sucursal,
           destino: "Garantías Central",
@@ -4431,7 +4437,7 @@ export default function Home() {
         return {
           documento: input.folio,
           orden: index + 1,
-          fecha: "18 sep 2026 · Ahora",
+          fecha: `18 sep 2026 · ${horaActual()}`,
           concepto: "Salida a CEDIS",
           origen: "Garantías Central",
           destino: "CEDIS",
@@ -4585,12 +4591,12 @@ export default function Home() {
       tipoAplicacion: resultado === "Procede" ? tipo : undefined,
       importeBonificacion: resultado === "Procede" ? importe : undefined,
       factura: folio,
-      fechaSolicitud: "25 ago 2026 · Ahora",
+      fechaSolicitud: `25 ago 2026 · ${horaActual()}`,
       usuario: "Andrea Martínez",
       imagenes: resultado === "Procede" ? imagenes : undefined,
       historial: [
         {
-          fecha: "25 ago 2026 · Ahora",
+          fecha: `25 ago 2026 · ${horaActual()}`,
           usuario: "Andrea Martínez",
           evento: `Solicitud creada y diagnosticada: ${resultado}`,
         },
@@ -4652,13 +4658,13 @@ export default function Home() {
       tipoAplicacion: resultado === "Procede" ? tipo : undefined,
       importeBonificacion: resultado === "Procede" ? importe : undefined,
       factura: folio,
-      fechaSolicitud: "1 sep 2026 · Ahora",
+      fechaSolicitud: `1 sep 2026 · ${horaActual()}`,
       origenMostrador: true,
       custodia: "Con el cliente",
       usuario: "Luis Martínez",
       historial: [
         {
-          fecha: "1 sep 2026 · Ahora",
+          fecha: `1 sep 2026 · ${horaActual()}`,
           usuario: "Luis Martínez",
           evento: `Solicitud creada en Mostrador y diagnosticada: ${resultado}`,
         },
@@ -4693,11 +4699,11 @@ export default function Home() {
         notaCredito: `NC-${String(6001 + n).padStart(4, "0")}`,
         estado: "Capturada",
         custodia: "En mostrador",
-        creadaEn: "1 sep 2026 · Ahora",
+        creadaEn: `1 sep 2026 · ${horaActual()}`,
         usuario: "Luis Martínez",
         historial: [
           {
-            fecha: "1 sep 2026 · Ahora",
+            fecha: `1 sep 2026 · ${horaActual()}`,
             usuario: "Luis Martínez",
             evento: "Devolución capturada en Mostrador",
           },
@@ -4741,7 +4747,7 @@ export default function Home() {
               historial: [
                 ...(c.historial || []),
                 {
-                  fecha: "4 sep 2026 · Ahora",
+                  fecha: `4 sep 2026 · ${horaActual()}`,
                   usuario: "Luis Martínez",
                   evento: "Entregada a Garantías Sucursal",
                 },
@@ -4769,7 +4775,7 @@ export default function Home() {
               historial: [
                 ...(c.historial || []),
                 {
-                  fecha: "4 sep 2026 · Ahora",
+                  fecha: `4 sep 2026 · ${horaActual()}`,
                   usuario: "Luis Martínez",
                   evento: "Recibida en Mostrador",
                 },
@@ -4795,7 +4801,7 @@ export default function Home() {
               historial: [
                 ...d.historial,
                 {
-                  fecha: "4 sep 2026 · Ahora",
+                  fecha: `4 sep 2026 · ${horaActual()}`,
                   usuario: "Luis Martínez",
                   evento: "Entregada a Garantías Sucursal",
                 },
@@ -4821,7 +4827,7 @@ export default function Home() {
               historial: [
                 ...d.historial,
                 {
-                  fecha: "4 sep 2026 · Ahora",
+                  fecha: `4 sep 2026 · ${horaActual()}`,
                   usuario: "Luis Martínez",
                   evento: "Recibida en el almacén de la sucursal",
                 },
@@ -5610,7 +5616,7 @@ function FreshchatSimulator({
       recibido: false,
       bateria: chat.bateria,
       factura: chosen,
-      fechaSolicitud: "25 ago 2026 · Ahora",
+      fechaSolicitud: `25 ago 2026 · ${horaActual()}`,
       origenBot: true,
     };
     onCreate(caso);
@@ -6786,7 +6792,7 @@ function Tabla({
         <span>Número de caja</span>
         <span>Nota de crédito</span>
         <span>Acción / dictamen</span>
-        <span>Tiempo de resolución</span>
+        <span>Tiempo</span>
       </div>
       {items.map((c) => {
         const pendiente = c.origenBot && !c.resultado,
@@ -9219,7 +9225,7 @@ function DispositionBoard({
                 ...i,
                 destination: target,
                 note: `Movida desde ${item.destination} por el técnico de Garantías`,
-                date: "25 ago · Ahora",
+                date: `25 ago · ${horaActual()}`,
               }
             : i,
         ),
@@ -9334,7 +9340,7 @@ function DispositionBoard({
             box: "Movimiento agrupado",
             destination: target,
             note: `${total} piezas movidas desde ${source}`,
-            date: "25 ago · Ahora",
+            date: `25 ago · ${horaActual()}`,
           },
           ...x,
         ]);
@@ -9391,7 +9397,7 @@ function DispositionBoard({
             .filter(([, q]) => q > 0)
             .map(([l, q]) => `${l}: ${q}`)
             .join(", ")}`,
-          date: "25 ago · Ahora",
+          date: `25 ago · ${horaActual()}`,
         },
       ]);
     }
@@ -9476,7 +9482,7 @@ function DispositionBoard({
           box: "Movimiento agrupado",
           destination: target,
           note: `${qty} piezas movidas desde Destrucción`,
-          date: "25 ago · Ahora",
+          date: `25 ago · ${horaActual()}`,
         },
         ...x,
       ]);
@@ -11812,7 +11818,7 @@ function IntegratedRepairView({
       status: "Reparación finalizada",
       elapsedSeconds: accumulated,
       startedAt: undefined,
-      finishedAt: "26 ago 2026 · Ahora",
+      finishedAt: `26 ago 2026 · ${horaActual()}`,
     });
     avisar(`${p.warrantyFolio}: reparación finalizada con tiempo acumulado`);
   };
@@ -11825,7 +11831,7 @@ function IntegratedRepairView({
       return;
     onUpdatePiece(p.pieceId, {
       status: "En calidad",
-      qualityAt: "25 ago 2026 · Ahora",
+      qualityAt: `25 ago 2026 · ${horaActual()}`,
     });
     avisar(`${p.warrantyFolio}: pieza transferida individualmente a Calidad`);
   };
@@ -12364,7 +12370,7 @@ function AssemblyWorkspace({
           name: `Tarima ${sequence}`,
           pieces: selected,
           status: "Armada",
-          createdAt: "26 ago 2026 · Ahora",
+          createdAt: `26 ago 2026 · ${horaActual()}`,
         },
         ...current,
       ];
@@ -12829,7 +12835,7 @@ function QualityAlertsWorkspace({
       technician,
       diagnosis,
       action: followUp,
-      date: "26 ago 2026 · Ahora",
+      date: `26 ago 2026 · ${horaActual()}`,
     });
     setDecision("");
     setFollowUp("");
@@ -13631,7 +13637,7 @@ function QualityView({
                     </div>
                     <div>
                       <dt>Fecha reparación</dt>
-                      <dd>{p.finishedAt || "25 ago 2026 · Ahora"}</dd>
+                      <dd>{p.finishedAt || `25 ago 2026 · ${horaActual()}`}</dd>
                     </div>
                     <div>
                       <dt>Fecha solicitud</dt>
@@ -14039,7 +14045,7 @@ function IncidentsView({
         type: "Diferencia de recepción",
         detail: `Solicitud ${folio} retirada de la bandeja operativa por incidencia`,
         status: "Abierto" as IncidentStatus,
-        date: "26 ago · Ahora",
+        date: `26 ago · ${horaActual()}`,
         requests: [folio],
       })),
       ...incidentData,
@@ -14198,7 +14204,7 @@ function IncidentsView({
           type: String(f.get("type")),
           detail: String(f.get("detail")),
           status: "Abierto",
-          date: "25 ago · Ahora",
+          date: `25 ago · ${horaActual()}`,
           requests: affected,
         };
       setItems((x) => [n, ...x]);
