@@ -3045,7 +3045,11 @@ type MovimientoInventario = {
   documento: string;
   orden: number;
   fecha: string;
-  concepto: "Entrada ajuste inventario" | "Salida ajuste inventario";
+  concepto:
+    | "Entrada ajuste inventario"
+    | "Salida ajuste inventario"
+    | "Entrada por recepción"
+    | "Salida a CEDIS";
   origen: string;
   destino: string;
   sku: string;
@@ -3054,7 +3058,29 @@ type MovimientoInventario = {
   cantidadNueva: number;
   observaciones?: string;
 };
+const almacenSucursalesSeed = [
+  "GDL Centro",
+  "Zapopan Norte",
+  "León Torres",
+  "Querétaro Centro",
+  "Aguascalientes Sur",
+];
+const movimientosRecepcionInicialSeed: MovimientoInventario[] =
+  inventoryRows.map((row, index) => ({
+    documento: `REC-INICIAL-${String(index + 1).padStart(2, "0")}`,
+    orden: 1,
+    fecha: `${String((index % 10) + 1).padStart(2, "0")} sep 2026 · ${String(8 + (index % 6)).padStart(2, "0")}:00`,
+    concepto: "Entrada por recepción",
+    origen: almacenSucursalesSeed[index % almacenSucursalesSeed.length],
+    destino: "Garantías Central",
+    sku: row.sku,
+    cantidad: row.qty,
+    cantidadAnterior: 0,
+    cantidadNueva: row.qty,
+    observaciones: `Recepción inicial en Almacén de ${row.type === "Reparación" ? "reparación" : "proveedor"}`,
+  }));
 const movimientosInventarioSeed: MovimientoInventario[] = [
+  ...movimientosRecepcionInicialSeed,
   {
     documento: "SM-1001",
     orden: 1,
@@ -3130,7 +3156,7 @@ type ProviderOutboundRequest = {
   provider: string;
   requestedQty: number;
   requestedAt: string;
-  status: "Solicitada" | "Transferida";
+  status: "Pendiente" | "Recibida";
   carrier?: string;
   guide?: string;
 };
@@ -3799,7 +3825,7 @@ export default function Home() {
       provider: "Fritec",
       requestedQty: 2,
       requestedAt: "28 ago 2026 · 08:42",
-      status: "Solicitada",
+      status: "Pendiente",
     },
   ]);
   const [qualityIncidents, setQualityIncidents] = useState<
@@ -4056,7 +4082,7 @@ export default function Home() {
         ...input,
         requestFolio,
         requestedAt: "28 ago 2026 · Ahora",
-        status: "Solicitada",
+        status: "Pendiente",
       },
       ...current,
     ]);
@@ -4139,7 +4165,7 @@ export default function Home() {
     const request = providerOutboundRequests.find(
       (item) => item.requestFolio === folio,
     );
-    if (!request || request.status === "Transferida") return;
+    if (!request || request.status === "Recibida") return;
     const withdrawn = scans.reduce(
       (byLocation, scan) => {
         byLocation[scan.location] = (byLocation[scan.location] || 0) + 1;
@@ -4159,7 +4185,7 @@ export default function Home() {
     setProviderOutboundRequests((current) =>
       current.map((item) =>
         item.requestFolio === folio
-          ? { ...item, status: "Transferida" }
+          ? { ...item, status: "Recibida" }
           : item,
       ),
     );
@@ -4237,6 +4263,36 @@ export default function Home() {
   const storeWarehouseFolios = (folios: string[]) => {
     const entering = warehouseQueue.filter((i) => folios.includes(i.folio));
     setStoredRequests((x) => [...new Set([...x, ...folios])]);
+    const runningQty: Record<string, number> = {};
+    const nuevosMovimientos: MovimientoInventario[] = entering.map(
+      (item, index) => {
+        const type =
+            item.destination === "A reparación" ? "Reparación" : "Proveedor",
+          location = type === "Reparación" ? "REP-02-B" : "PROV-07-A",
+          key = `${item.sku}__${location}`,
+          anterior =
+            runningQty[key] ??
+            warehouseStock.find(
+              (r) => r.sku === item.sku && r.location === location,
+            )?.qty ??
+            0,
+          nueva = anterior + 1;
+        runningQty[key] = nueva;
+        return {
+          documento: item.folio,
+          orden: index + 1,
+          fecha: "18 sep 2026 · Ahora",
+          concepto: "Entrada por recepción",
+          origen: item.sucursal,
+          destino: "Garantías Central",
+          sku: item.sku,
+          cantidad: 1,
+          cantidadAnterior: anterior,
+          cantidadNueva: nueva,
+          observaciones: `Recepción en Almacén de ${type === "Reparación" ? "reparación" : "proveedor"}`,
+        };
+      },
+    );
     setWarehouseStock((rows) => {
       const next = [...rows];
       entering.forEach((item) => {
@@ -4264,7 +4320,50 @@ export default function Home() {
       });
       return next;
     });
+    if (nuevosMovimientos.length)
+      setMovimientosInventario((x) => [...nuevosMovimientos, ...x]);
     avisar(`${folios.length} pieza(s) ingresadas e inventario actualizado`);
+  };
+  const transferPalletToCedis = (input: {
+    folio: string;
+    grupos: { sku: string; producto: string; cantidad: number }[];
+  }) => {
+    const nuevosMovimientos: MovimientoInventario[] = input.grupos.map(
+      (grupo, index) => {
+        const anterior = warehouseStock
+          .filter((r) => r.sku === grupo.sku && r.type === "Reparación")
+          .reduce((s, r) => s + r.qty, 0);
+        return {
+          documento: input.folio,
+          orden: index + 1,
+          fecha: "18 sep 2026 · Ahora",
+          concepto: "Salida a CEDIS",
+          origen: "Garantías Central",
+          destino: "CEDIS",
+          sku: grupo.sku,
+          cantidad: grupo.cantidad,
+          cantidadAnterior: anterior,
+          cantidadNueva: Math.max(0, anterior - grupo.cantidad),
+          observaciones: "Traspaso de tarima a CEDIS",
+        };
+      },
+    );
+    setWarehouseStock((rows) => {
+      let next = [...rows];
+      input.grupos.forEach((grupo) => {
+        let restante = grupo.cantidad;
+        next = next.map((r) => {
+          if (r.sku === grupo.sku && r.type === "Reparación" && restante > 0) {
+            const descuento = Math.min(r.qty, restante);
+            restante -= descuento;
+            return { ...r, qty: r.qty - descuento };
+          }
+          return r;
+        });
+      });
+      return next.filter((r) => r.qty > 0);
+    });
+    setMovimientosInventario((x) => [...nuevosMovimientos, ...x]);
   };
   const resolveQuality = async (
     piece: RepairPiece,
@@ -5040,6 +5139,7 @@ export default function Home() {
                         : [incident, ...current],
                     )
                   }
+                  onTransferToCedis={transferPalletToCedis}
                 />
               )}
             </section>
@@ -10365,7 +10465,7 @@ function ProviderTransferWorkspace({
   avisar: (message: string) => void;
   stock: typeof inventoryRows;
 }) {
-  const pending = requests.filter((request) => request.status === "Solicitada"),
+  const pending = requests.filter((request) => request.status === "Pendiente"),
     [folio, setFolio] = useState(""),
     [location, setLocation] = useState(""),
     [label, setLabel] = useState(""),
@@ -10728,7 +10828,7 @@ function IntegratedWarehouseHub({
       .filter((r) => r.status === "Solicitada")
       .reduce((s, r) => s + r.requestedQty, 0),
     providerAvailable = providerRequests
-      .filter((request) => request.status === "Solicitada")
+      .filter((request) => request.status === "Pendiente")
       .reduce((sum, request) => sum + request.requestedQty, 0),
     totalStock = stock.reduce((s, r) => s + r.qty, 0);
   const chooseCategory = (next: typeof category) => {
@@ -10955,10 +11055,23 @@ function InventoryKardex({
 }: {
   movimientos: MovimientoInventario[];
 }) {
-  const [query, setQuery] = useState("");
+  const [query, setQuery] = useState(""),
+    [fechaDesde, setFechaDesde] = useState(""),
+    [fechaHasta, setFechaHasta] = useState("");
   const codigo = query.trim().toUpperCase();
   const resultados = codigo
-    ? movimientos.filter((m) => m.sku === codigo)
+    ? movimientos
+        .filter((m) => {
+          const fecha = requestDate(m.fecha);
+          return (
+            m.sku === codigo &&
+            (!fechaDesde || !fecha || fecha >= fechaDesde) &&
+            (!fechaHasta || !fecha || fecha <= fechaHasta)
+          );
+        })
+        .sort((a, b) =>
+          requestDate(a.fecha).localeCompare(requestDate(b.fecha)),
+        )
     : [];
   return (
     <section className="panel warehouse-control kardex-view">
@@ -10968,14 +11081,34 @@ function InventoryKardex({
           <p>Consulta el historial de movimientos de un producto por código.</p>
         </div>
       </div>
-      <label className="outbound-search">
-        ⌕
-        <input
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          placeholder="Código de producto"
-        />
-      </label>
+      <div className="kardex-filters">
+        <label className="outbound-search">
+          ⌕
+          <input
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Código de producto"
+          />
+        </label>
+        <label className="date-range-filter">
+          <span>Fecha desde</span>
+          <input
+            type="date"
+            value={fechaDesde}
+            max={fechaHasta || undefined}
+            onChange={(e) => setFechaDesde(e.target.value)}
+          />
+        </label>
+        <label className="date-range-filter">
+          <span>Fecha hasta</span>
+          <input
+            type="date"
+            value={fechaHasta}
+            min={fechaDesde || undefined}
+            onChange={(e) => setFechaHasta(e.target.value)}
+          />
+        </label>
+      </div>
       {!codigo ? (
         <div className="warehouse-query-empty">
           <i>⌕</i>
@@ -12046,9 +12179,16 @@ type AssemblyPallet = {
 function AssemblyWorkspace({
   pieces,
   avisar,
+  stock,
+  onTransferToCedis,
 }: {
   pieces: RepairPiece[];
   avisar: (s: string) => void;
+  stock: typeof inventoryRows;
+  onTransferToCedis: (input: {
+    folio: string;
+    grupos: { sku: string; producto: string; cantidad: number }[];
+  }) => void;
 }) {
   const [mode, setMode] = useState<"pending" | "pallets">("pending"),
     [code, setCode] = useState(""),
@@ -12128,6 +12268,35 @@ function AssemblyWorkspace({
     avisar("Tarima creada correctamente");
   };
   const transfer = async (p: AssemblyPallet) => {
+    const grupos = Object.values(
+      p.pieces.reduce(
+        (a, piece) => {
+          const g = (a[piece.sku] ??= {
+            sku: piece.sku,
+            producto: piece.product,
+            cantidad: 0,
+          });
+          g.cantidad++;
+          return a;
+        },
+        {} as Record<
+          string,
+          { sku: string; producto: string; cantidad: number }
+        >,
+      ),
+    );
+    const faltante = grupos.find((g) => {
+      const disponible = stock
+        .filter((r) => r.sku === g.sku && r.type === "Reparación")
+        .reduce((s, r) => s + r.qty, 0);
+      return disponible < g.cantidad;
+    });
+    if (faltante) {
+      avisar(
+        `No es posible generar el traspaso: existencia insuficiente de ${faltante.sku} en Almacén de reparación.`,
+      );
+      return;
+    }
     if (
       !(await askQuestion(
         `¿Confirmas generar el traspaso a CEDIS de ${p.name}?`,
@@ -12135,6 +12304,7 @@ function AssemblyWorkspace({
     )
       return;
     const folio = `TR-CEDIS-${String(261 + pallets.length).padStart(4, "0")}`;
+    onTransferToCedis({ folio, grupos });
     setPallets((x) =>
       x.map((i) =>
         i.id === p.id ? { ...i, status: "Transferida a CEDIS", folio } : i,
@@ -12944,6 +13114,7 @@ function QualityView({
   onConfirmProviderShipment,
   onRedirectProviderToDestruction,
   onCreateIncident,
+  onTransferToCedis,
 }: {
   pieces: RepairPiece[];
   onResolve: (
@@ -12971,6 +13142,10 @@ function QualityView({
   onRedirectProviderToDestruction: (
     request: ProviderOutboundRequest,
   ) => Promise<boolean>;
+  onTransferToCedis: (input: {
+    folio: string;
+    grupos: { sku: string; producto: string; cantidad: number }[];
+  }) => void;
   onCreateIncident: (i: QualityGeneratedIncident) => void;
 }) {
   const [tab, setTab] = useState<
@@ -13035,7 +13210,7 @@ function QualityView({
       providerRequests
         .filter(
           (request) =>
-            request.sku === sku && request.status === "Solicitada",
+            request.sku === sku && request.status === "Pendiente",
         )
         .reduce((total, request) => total + request.requestedQty, 0),
     selectedProvider = providerGroups.find(
@@ -13113,7 +13288,7 @@ function QualityView({
           <span>
             <b>Consulta de inventario proveedor</b>
             <small>
-              {providerRequests.filter((request) => request.status === "Solicitada").length} solicitudes de salida activas
+              {providerRequests.filter((request) => request.status === "Pendiente").length} solicitudes de salida activas
             </small>
           </span>
         </button>
@@ -13139,7 +13314,7 @@ function QualityView({
               </p>
             </div>
             <span>
-              {providerRequests.filter((request) => request.status === "Solicitada").length} activas
+              {providerRequests.filter((request) => request.status === "Pendiente").length} activas
             </span>
           </div>
           {providerRequests.length ? (
@@ -13147,10 +13322,10 @@ function QualityView({
               <article
                 key={request.requestFolio}
                 className={
-                  request.status === "Solicitada" ? "provider-request-row" : ""
+                  request.status === "Recibida" ? "provider-request-row" : ""
                 }
                 onClick={() =>
-                  request.status === "Solicitada" &&
+                  request.status === "Recibida" &&
                   setShipmentTarget(request)
                 }
               >
@@ -13171,7 +13346,7 @@ function QualityView({
                       : ""}
                   </em>
                 </span>
-                {request.status === "Solicitada" ? (
+                {request.status === "Pendiente" ? (
                   <button
                     className="cancel-request"
                     onClick={(e) => {
@@ -13182,7 +13357,9 @@ function QualityView({
                     Cancelar solicitud
                   </button>
                 ) : (
-                  <em className="request-transferred-status">✓ Transferida</em>
+                  <em className="request-transferred-status">
+                    ↗ Decidir destino
+                  </em>
                 )}
               </article>
             ))
@@ -13399,7 +13576,12 @@ function QualityView({
           )}
         </section>
       ) : tab === "assembly" ? (
-        <AssemblyWorkspace pieces={assembly} avisar={avisar} />
+        <AssemblyWorkspace
+          pieces={assembly}
+          avisar={avisar}
+          stock={stock}
+          onTransferToCedis={onTransferToCedis}
+        />
       ) : (
         <QualityAlertsWorkspace
           avisar={avisar}
