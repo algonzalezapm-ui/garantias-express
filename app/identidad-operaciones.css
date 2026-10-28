@@ -1,0 +1,159 @@
+@import url("https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;500;600;700&display=swap");
+
+/*
+  Identidad visual "APYMSA · Operaciones" aplicada a la pantalla de inicio (portal).
+
+  - Solo estilos: no cambia estructura, datos, folios ni lógica.
+  - Se limita a `main.portal.portal-blue`, es decir, solo al portal. El resto de la app no se toca.
+  - Debe cargarse DESPUÉS de globals.css y overrides.css (ver layout.tsx).
+  - Para revertir: quitar el import de este archivo en layout.tsx.
+*/
+
+main.portal.portal-blue {
+  --id-fondo: #12254f;
+  --id-superficie: rgba(26, 47, 97, 0.55);
+  --id-superficie-2: #213a73;
+  --id-borde: #4a669d;
+  --id-borde-suave: rgba(74, 102, 157, 0.6);
+  --id-texto: #eef3ff;
+  --id-suave: #9db1db;
+  --id-acento: #5bd5ff;
+  --id-sobre-acento: #0a1b3d;
+  --id-halo: 0 0 0 1px #5bd5ff, 0 0 26px rgba(91, 213, 255, 0.35);
+
+  background: radial-gradient(1100px 560px at 18% -10%, #1f3a78 0%, var(--id-fondo) 62%);
+  color: var(--id-texto);
+  font-family: "Montserrat", Inter, ui-sans-serif, system-ui, "Segoe UI", sans-serif;
+}
+
+/* Encabezado */
+main.portal.portal-blue > header {
+  background: transparent;
+  backdrop-filter: none;
+  border-bottom: 1px solid var(--id-borde-suave);
+  color: var(--id-texto);
+}
+main.portal.portal-blue .portal-brand > b {
+  background: transparent;
+  border: 1px solid var(--id-acento);
+  color: var(--id-acento);
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+main.portal.portal-blue .portal-brand strong {
+  color: var(--id-texto);
+  font-weight: 600;
+}
+main.portal.portal-blue .portal-brand small,
+main.portal.portal-blue .portal-user {
+  color: var(--id-suave);
+}
+main.portal.portal-blue .portal-user > b {
+  background: var(--id-superficie-2);
+  border: 1px solid var(--id-acento);
+  color: var(--id-acento);
+  font-weight: 600;
+}
+
+/* Saludo */
+main.portal.portal-blue .portal-copy > small {
+  color: var(--id-suave);
+  letter-spacing: 0.16em;
+}
+main.portal.portal-blue .portal-copy h1 {
+  color: var(--id-texto);
+  font-weight: 300;
+  letter-spacing: -0.01em;
+}
+main.portal.portal-blue .portal-copy p {
+  color: var(--id-suave);
+}
+
+/* Las tarjetas crecen según su contenido: con títulos largos (por ejemplo, "Registro de devoluciones
+   y garantías") ya no se corta el pendiente ni el acceso al módulo. */
+main.portal.portal-blue .module-grid {
+  grid-auto-rows: minmax(clamp(210px, 26vh, 260px), auto);
+}
+main.portal.portal-blue .module-grid > button {
+  height: auto;
+}
+
+/* Tarjetas de módulo: contorno fino y brillo cian al enfocar o pasar el cursor */
+main.portal.portal-blue .module-grid > button {
+  background: var(--id-superficie);
+  color: var(--id-texto);
+  border: 1px solid var(--id-borde);
+  border-radius: 16px;
+  box-shadow: none;
+}
+main.portal.portal-blue .module-grid > button.enabled:hover,
+main.portal.portal-blue .module-grid > button.enabled:focus-visible {
+  transform: none;
+  border-color: var(--id-acento);
+  box-shadow: var(--id-halo);
+  outline: none;
+}
+main.portal.portal-blue .module-grid > button.enabled:after {
+  display: none;
+}
+main.portal.portal-blue .module-grid > button > i {
+  background: transparent;
+  border: 1px solid var(--id-acento);
+  color: var(--id-acento);
+  border-radius: 12px;
+}
+main.portal.portal-blue .module-grid .tag {
+  color: var(--id-suave);
+  font-weight: 700;
+  letter-spacing: 0.12em;
+}
+main.portal.portal-blue .module-grid h2 {
+  color: var(--id-texto);
+  font-weight: 500;
+}
+main.portal.portal-blue .module-grid p {
+  color: var(--id-suave);
+  font-weight: 400;
+}
+
+/* Pendiente del día: el número es lo principal */
+main.portal.portal-blue .module-stat,
+main.portal.portal-blue .module-stat.stat-central,
+main.portal.portal-blue .module-stat.stat-branch,
+main.portal.portal-blue .module-stat.stat-mostrador {
+  background: transparent;
+  border-top: 1px solid var(--id-borde-suave);
+  border-radius: 0;
+  color: var(--id-suave);
+  font-weight: 500;
+  padding: 12px 0 2px;
+}
+main.portal.portal-blue .module-stat b {
+  color: var(--id-acento);
+  font-size: 26px;
+  font-weight: 300;
+}
+main.portal.portal-blue .module-grid strong {
+  color: var(--id-acento);
+  font-weight: 600;
+}
+
+/* Módulos próximos */
+main.portal.portal-blue .coming-soon-label {
+  color: var(--id-suave);
+  letter-spacing: 0.14em;
+}
+main.portal.portal-blue .coming-soon-chip {
+  background: transparent;
+  border: 1px dashed var(--id-borde);
+  color: var(--id-suave);
+}
+main.portal.portal-blue .portal-note {
+  color: var(--id-suave);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  main.portal.portal-blue .module-grid > button {
+    transition: none;
+  }
+}

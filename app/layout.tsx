@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import "./overrides.css";
+import "./identidad-operaciones.css";
+import "./identidad-modulos-oscuro.css";
 export const metadata: Metadata = { title: "Garantías Express | Centro de operación", description: "Operación integral, multisucursal y trazabilidad centralizada del proceso de garantías." };
 const entornoPruebaBadgeStyle: React.CSSProperties = {
   position: "fixed",
