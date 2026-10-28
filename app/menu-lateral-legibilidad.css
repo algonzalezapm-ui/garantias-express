@@ -232,6 +232,23 @@
   white-space: normal;
   line-height: 1.3;
 }
+/* Encabezado de Central: hora de la última actualización junto a "Refrescar". */
+.titulo-refresco {
+  align-items: center;
+}
+.titulo-refresco > small {
+  color: #c7d4f2;
+  font: 600 12px/1 ui-monospace, "Cascadia Mono", Consolas, "SF Mono", monospace;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
+/* En pantallas angostas se oculta, igual que el botón antes de este cambio. */
+@media (max-width: 900px) {
+  .titulo-refresco {
+    display: none;
+  }
+}
+
 /* Los folios de caja (GX-ZPN-008) y los estados de caja se leen completos. */
 .request-table .fila .box-cell b,
 .request-table .fila .box-cell small {
