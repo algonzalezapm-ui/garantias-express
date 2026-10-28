@@ -1,0 +1,241 @@
+/*
+  Menú lateral en tarjetas y ajustes de legibilidad (tema "APYMSA · Operaciones").
+
+  - Aplica al menú de Garantías Central (.shell > aside) y al de Garantías Sucursal (.branch-side-menu).
+  - Opciones agrupadas (OPERACIÓN / CONSULTA) en tarjetas con borde, ícono de línea, contador con punto
+    de pendiente y opción activa en cian.
+  - Debe cargarse DESPUÉS de identidad-modulos-oscuro.css (ver layout.tsx).
+  - Para revertir: quitar el import de este archivo en layout.tsx.
+*/
+
+/* ---- Estructura del menú ---- */
+:is(.shell > aside, .branch-side-menu) nav {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  padding: 0 0 8px;
+}
+:is(.shell > aside, .branch-side-menu) .nav-group {
+  display: grid;
+  gap: 10px;
+}
+:is(.shell > aside, .branch-side-menu) .nav-group + .nav-group {
+  padding-top: 18px;
+  border-top: 1px solid rgba(74, 102, 157, 0.6);
+}
+:is(.shell > aside, .branch-side-menu) .nav-group > small {
+  padding: 0 2px;
+  color: #c7d4f2;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+}
+
+/* ---- Opción en tarjeta ---- */
+:is(.shell > aside, .branch-side-menu) nav button,
+.branch-side-menu .branch-side-switch {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  min-height: 48px;
+  padding: 10px 12px;
+  border: 1px solid #4a669d;
+  border-radius: 8px;
+  background: rgba(26, 47, 97, 0.55);
+  box-shadow: none;
+  color: #eef3ff;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.25;
+  text-align: left;
+  transition: border-color 0.15s, background 0.15s, box-shadow 0.15s;
+}
+:is(.shell > aside, .branch-side-menu) nav button > span,
+.branch-side-menu .branch-side-switch > span {
+  flex: 1;
+  min-width: 0;
+  font-size: 13px;
+  white-space: normal;
+}
+:is(.shell > aside, .branch-side-menu) nav button > i,
+.branch-side-menu .branch-side-switch > i {
+  display: grid;
+  place-items: center;
+  flex: 0 0 22px;
+  width: 22px;
+  height: 22px;
+  margin: 0;
+  background: none;
+  box-shadow: none;
+  color: #c7d4f2;
+  font-size: inherit;
+}
+:is(.shell > aside, .branch-side-menu) nav button:hover,
+.branch-side-menu .branch-side-switch:hover {
+  border-color: #5bd5ff;
+  background: rgba(91, 213, 255, 0.08);
+  color: #fff;
+}
+:is(.shell > aside, .branch-side-menu) nav button:focus-visible,
+.branch-side-menu .branch-side-switch:focus-visible {
+  outline: 2px solid #5bd5ff;
+  outline-offset: 2px;
+}
+
+/* Opción activa: relleno cian con brillo, como en la identidad de Operaciones. */
+.shell > aside nav button.activo,
+.branch-side-menu nav button.active {
+  border-color: #5bd5ff;
+  background: #5bd5ff;
+  box-shadow: 0 0 0 1px #5bd5ff, 0 0 22px rgba(91, 213, 255, 0.35);
+  color: #0a1b3d;
+}
+.shell > aside nav button.activo > i,
+.branch-side-menu nav button.active > i {
+  color: #0a1b3d;
+}
+
+/* Contador: punto ámbar de pendiente y número en cifras monoespaciadas. */
+:is(.shell > aside, .branch-side-menu) nav button > em {
+  float: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+  padding: 0;
+  border-radius: 0;
+  background: none;
+  color: #eef3ff;
+  font: 600 13px/1 ui-monospace, "Cascadia Mono", Consolas, "SF Mono", monospace;
+  font-style: normal;
+  letter-spacing: 0.04em;
+}
+:is(.shell > aside, .branch-side-menu) nav button > em > b {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #ffb454;
+}
+.shell > aside nav button.activo > em,
+.branch-side-menu nav button.active > em {
+  color: #0a1b3d;
+}
+.shell > aside nav button.activo > em > b,
+.branch-side-menu nav button.active > em > b {
+  background: #0a1b3d;
+}
+
+/* Menú desplegado: un poco más ancho para que las opciones respiren. */
+@media (min-width: 901px) {
+  .shell:not(.menu-collapsed) > aside,
+  .branch-app-layout:not(.collapsed) .branch-side-menu {
+    width: 244px;
+    padding-inline: 14px;
+  }
+  .shell:not(.menu-collapsed) > main,
+  .branch-app-layout:not(.collapsed) .branch-app-content {
+    margin-left: 244px;
+  }
+}
+
+/* ---- Menú contraído: solo íconos, con el contador como globo ---- */
+.shell.menu-collapsed > aside nav,
+.branch-app-layout.collapsed .branch-side-menu nav {
+  align-items: center;
+}
+.shell.menu-collapsed > aside .nav-group > small,
+.branch-app-layout.collapsed .branch-side-menu .nav-group > small {
+  display: none;
+}
+.shell.menu-collapsed > aside nav button,
+.branch-app-layout.collapsed .branch-side-menu nav button,
+.branch-app-layout.collapsed .branch-side-menu .branch-side-switch {
+  position: relative;
+  justify-content: center;
+  width: 46px;
+  min-height: 46px;
+  padding: 0;
+}
+.shell.menu-collapsed > aside nav button > i,
+.branch-app-layout.collapsed .branch-side-menu nav button > i,
+.branch-app-layout.collapsed .branch-side-menu .branch-side-switch > i {
+  width: 22px;
+  height: 22px;
+  background: none;
+  box-shadow: none;
+  transform: none;
+}
+.shell.menu-collapsed > aside nav button:not(.activo) > i,
+.branch-app-layout.collapsed .branch-side-menu nav button:not(.active) > i {
+  color: #c7d4f2;
+}
+.shell.menu-collapsed > aside nav button > em,
+.branch-app-layout.collapsed .branch-side-menu nav button > em {
+  position: absolute;
+  top: -7px;
+  right: -7px;
+  display: inline-flex;
+  padding: 2px 5px;
+  border-radius: 10px;
+  background: #ffb454;
+  color: #0a1b3d;
+  font-size: 11px;
+}
+.shell.menu-collapsed > aside nav button > em > b,
+.branch-app-layout.collapsed .branch-side-menu nav button > em > b {
+  display: none;
+}
+
+/* En pantallas angostas el menú de Central se contrae solo: mismas reglas que el contraído. */
+@media (max-width: 900px) {
+  .shell > aside nav {
+    align-items: center;
+  }
+  .shell > aside .nav-group > small {
+    display: none;
+  }
+  .shell > aside nav button {
+    position: relative;
+    justify-content: center;
+    width: 46px;
+    min-height: 46px;
+    padding: 0;
+  }
+  .shell > aside nav button > em {
+    position: absolute;
+    top: -7px;
+    right: -7px;
+    padding: 2px 5px;
+    border-radius: 10px;
+    background: #ffb454;
+    color: #0a1b3d;
+    font-size: 11px;
+  }
+  .shell > aside nav button > em > b {
+    display: none;
+  }
+}
+
+/* ---- Bandeja centralizada: columnas que no se encimen ni corten datos ---- */
+@media (min-width: 1201px) {
+  .solicitudes.solicitudes-full .request-table .fila {
+    grid-template-columns:
+      minmax(150px, 1fr) minmax(180px, 1.3fr) minmax(92px, 0.55fr) minmax(150px, 0.9fr)
+      minmax(112px, 0.7fr) minmax(108px, 0.6fr) minmax(96px, 0.55fr) minmax(100px, 0.6fr)
+      minmax(64px, 0.4fr);
+  }
+}
+/* Los estados largos (por ejemplo, "Garantías Central") bajan de renglón en vez de invadir la columna vecina. */
+.request-table .fila .custody-status {
+  max-width: 100%;
+  white-space: normal;
+  line-height: 1.3;
+}
+/* Los folios de caja (GX-ZPN-008) y los estados de caja se leen completos. */
+.request-table .fila .box-cell b,
+.request-table .fila .box-cell small {
+  overflow: visible;
+  text-overflow: clip;
+  white-space: nowrap;
+}
