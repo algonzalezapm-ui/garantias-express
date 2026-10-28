@@ -3793,6 +3793,14 @@ function NavCount({ value }: { value: number }) {
     </em>
   );
 }
+const horaConSegundos = () =>
+  new Date().toLocaleTimeString("es-MX", {
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: false,
+  });
+
 export default function Home() {
   const [portal, setPortal] = useState<
       "central" | "sucursal" | "mostrador" | null
@@ -3807,6 +3815,7 @@ export default function Home() {
     [estadoCustodia, setEstadoCustodia] = useState("Todos"),
     [cajaFiltro, setCajaFiltro] = useState("Todas"),
     [modal, setModal] = useState(false),
+    [actualizado, setActualizado] = useState(""),
     [receptionModal, setReceptionModal] = useState(false),
     [diagnosisModal, setDiagnosisModal] = useState(false),
     [receivedBoxes, setReceivedBoxes] = useState<string[]>(["GX-ZPN-008"]),
@@ -4094,6 +4103,10 @@ export default function Home() {
     setToast(m);
     setTimeout(() => setToast(""), 2600);
   };
+  // La hora se toma en el cliente al montar para no desfasar el render del servidor.
+  useEffect(() => {
+    setActualizado(horaConSegundos());
+  }, []);
   const createRepairRequest = (
     input: Omit<
       RepairRequest,
@@ -5081,9 +5094,17 @@ export default function Home() {
               <h1>{titulos[vista][0]}</h1>
               <p>{titulos[vista][1]}</p>
             </div>
-            <button onClick={() => avisar("Información actualizada")}>
-              ↻ Actualizar
-            </button>
+            <div className="titulo-actions titulo-refresco">
+              {actualizado && <small>Actualizado: {actualizado}</small>}
+              <button
+                onClick={() => {
+                  setActualizado(horaConSegundos());
+                  avisar("Información actualizada");
+                }}
+              >
+                ↻ Refrescar
+              </button>
+            </div>
           </div>
           {vista === "Inicio" && <CentralDashboard />}
           {vista === "Solicitudes" && (
