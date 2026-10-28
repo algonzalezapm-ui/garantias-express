@@ -3718,6 +3718,81 @@ function WarehouseHub({
     </section>
   );
 }
+// Íconos de línea del menú lateral (Central y Sucursal), con el mismo trazo que los del portal.
+const NAV_ICONS = {
+  indicadores: (
+    <>
+      <path d="M4 20V10M10 20V4M16 20v-7M22 20H2" />
+    </>
+  ),
+  solicitudes: (
+    <>
+      <rect x="8" y="2.5" width="8" height="4" rx="1" />
+      <path d="M16 4.5h2a2 2 0 0 1 2 2V20a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6.5a2 2 0 0 1 2-2h2" />
+      <path d="M9 12h6M9 16h4" />
+    </>
+  ),
+  almacen: (
+    <>
+      <path d="M3 21V8.5L12 3l9 5.5V21" />
+      <path d="M7 21v-8h10v8M7 17h10" />
+    </>
+  ),
+  reparacion: (
+    <>
+      <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.8-3.8a6 6 0 0 1-7.9 7.9l-6.9 6.9a2.1 2.1 0 0 1-3-3l6.9-6.9a6 6 0 0 1 7.9-7.9z" />
+    </>
+  ),
+  incidencias: (
+    <>
+      <path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z" />
+      <path d="M12 9v4M12 17h.01" />
+    </>
+  ),
+  arribo: (
+    <>
+      <path d="M12 3v9M8 8l4 4 4-4" />
+      <path d="M4 14v5a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-5" />
+    </>
+  ),
+  devoluciones: (
+    <>
+      <path d="M9 14 4 9l5-5" />
+      <path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11" />
+    </>
+  ),
+  cambiar: (
+    <>
+      <path d="m16 3 4 4-4 4M20 7H4M8 21l-4-4 4-4M4 17h16" />
+    </>
+  ),
+};
+function NavIcon({ name }: { name: keyof typeof NAV_ICONS }) {
+  return (
+    <svg
+      width="20"
+      height="20"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      {NAV_ICONS[name]}
+    </svg>
+  );
+}
+// Contador del menú lateral: punto ámbar de pendiente y número a dos dígitos.
+function NavCount({ value }: { value: number }) {
+  return (
+    <em>
+      <b aria-hidden="true" />
+      {String(value).padStart(2, "0")}
+    </em>
+  );
+}
 export default function Home() {
   const [portal, setPortal] = useState<
       "central" | "sucursal" | "mostrador" | null
@@ -4941,23 +5016,37 @@ export default function Home() {
           </span>
         </div>
         <nav>
-          {[
-            ["Inicio", "▦", "Indicadores"],
-            ["Solicitudes", "◎", "Solicitudes"],
-            ["Almacén", "▤", "Almacén de garantías"],
-            ["Reparación", "⚙", "Reparación y Calidad"],
-            ["Incidencias", "!", "Incidencias"],
-          ].map(([n, i, label]) => (
-            <button
-              key={n}
-              className={vista === n ? "activo" : ""}
-              onClick={() => setVista(n)}
-            >
-              <i>{i}</i>
-              <span>{label}</span>
-              {n === "Solicitudes" && <em>12</em>}
-              {n === "Incidencias" && <em>3</em>}
-            </button>
+          {(
+            [
+              [
+                "OPERACIÓN",
+                [
+                  ["Solicitudes", "solicitudes", "Solicitudes", 12],
+                  ["Almacén", "almacen", "Almacén de garantías", 0],
+                  ["Reparación", "reparacion", "Reparación y Calidad", 0],
+                  ["Incidencias", "incidencias", "Incidencias", 3],
+                ],
+              ],
+              ["CONSULTA", [["Inicio", "indicadores", "Indicadores", 0]]],
+            ] as [string, [string, keyof typeof NAV_ICONS, string, number][]][]
+          ).map(([grupo, opciones]) => (
+            <div className="nav-group" key={grupo}>
+              <small>{grupo}</small>
+              {opciones.map(([n, icono, label, pendientes]) => (
+                <button
+                  key={n}
+                  className={vista === n ? "activo" : ""}
+                  onClick={() => setVista(n)}
+                  title={label}
+                >
+                  <i>
+                    <NavIcon name={icono} />
+                  </i>
+                  <span>{label}</span>
+                  {pendientes > 0 && <NavCount value={pendientes} />}
+                </button>
+              ))}
+            </div>
           ))}
         </nav>
         <div className="usuario">
@@ -15163,42 +15252,61 @@ function SucursalPortal({
           </span>
         </div>
         <nav>
-          <small>GARANTÍAS SUCURSAL</small>
-          <button
-            className={tab === "indicadores" ? "active" : ""}
-            onClick={() => setTab("indicadores")}
-          >
-            <i>▦</i>
-            <span>Indicadores</span>
-          </button>
-          <button
-            className={tab === "garantias" ? "active" : ""}
-            onClick={() => setTab("garantias")}
-          >
-            <i>↓</i>
-            <span>Arribo de garantías</span>
-          </button>
-          <button
-            className={tab === "devoluciones" ? "active" : ""}
-            onClick={() => setTab("devoluciones")}
-          >
-            <i>↩</i>
-            <span>Arribo de devoluciones</span>
-            {devolucionesArribo.length > 0 && (
-              <em>{devolucionesArribo.length}</em>
-            )}
-          </button>
-          <button
-            className={tab === "incidencias" ? "active" : ""}
-            onClick={() => setTab("incidencias")}
-          >
-            <i>!</i>
-            <span>Incidencias</span>
-            <em>2</em>
-          </button>
+          <div className="nav-group">
+            <small>OPERACIÓN</small>
+            <button
+              className={tab === "garantias" ? "active" : ""}
+              onClick={() => setTab("garantias")}
+              title="Arribo de garantías"
+            >
+              <i>
+                <NavIcon name="arribo" />
+              </i>
+              <span>Arribo de garantías</span>
+            </button>
+            <button
+              className={tab === "devoluciones" ? "active" : ""}
+              onClick={() => setTab("devoluciones")}
+              title="Arribo de devoluciones"
+            >
+              <i>
+                <NavIcon name="devoluciones" />
+              </i>
+              <span>Arribo de devoluciones</span>
+              {devolucionesArribo.length > 0 && (
+                <NavCount value={devolucionesArribo.length} />
+              )}
+            </button>
+            <button
+              className={tab === "incidencias" ? "active" : ""}
+              onClick={() => setTab("incidencias")}
+              title="Incidencias"
+            >
+              <i>
+                <NavIcon name="incidencias" />
+              </i>
+              <span>Incidencias</span>
+              <NavCount value={2} />
+            </button>
+          </div>
+          <div className="nav-group">
+            <small>CONSULTA</small>
+            <button
+              className={tab === "indicadores" ? "active" : ""}
+              onClick={() => setTab("indicadores")}
+              title="Indicadores"
+            >
+              <i>
+                <NavIcon name="indicadores" />
+              </i>
+              <span>Indicadores</span>
+            </button>
+          </div>
         </nav>
         <button className="branch-side-switch" onClick={onBack}>
-          <i>⇄</i>
+          <i>
+            <NavIcon name="cambiar" />
+          </i>
           <span>Cambiar módulo</span>
         </button>
       </aside>
